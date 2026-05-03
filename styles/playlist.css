@@ -1,0 +1,344 @@
+/* ═══════════════════════════════════════════════════════
+   playlist.css — 플레이리스트 & 큐 패널 (UX 개선)
+   ═══════════════════════════════════════════════════════ */
+
+/* ── 플레이리스트 패널 ───────────────────────────────── */
+/* grid-area는 main.css의 반응형 레이아웃에서 통합 관리함 */
+
+/* ── 툴바 ────────────────────────────────────────────── */
+.playlist-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  padding: var(--sp-sm) var(--sp-md);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.pl-search {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  padding: 5px 8px;
+  outline: none;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.pl-search::placeholder { color: var(--text-muted); }
+.pl-search:focus { border-color: var(--border-gold); }
+
+.pl-sort {
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  padding: 5px 6px;
+  outline: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ── 드롭존 ──────────────────────────────────────────── */
+.pl-drop-zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-md);
+  padding: var(--sp-xl);
+  margin: var(--sp-lg) var(--sp-md);
+  border: 1.5px dashed rgba(255,255,255,0.1);
+  border-radius: var(--r-lg);
+  cursor: default;
+  transition: all var(--dur-med) var(--ease);
+}
+
+.pl-drop-zone .drop-icon {
+  font-size: 32px;
+  opacity: 0.2;
+}
+
+.pl-drop-zone.drag-over {
+  border-color: var(--gold-dim);
+  background: var(--gold-subtle);
+}
+
+.pl-drop-zone.drag-over .drop-icon { opacity: 0.5; }
+
+.pl-drop-hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.pl-drop-add-btn {
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 16px;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease);
+}
+
+.pl-drop-add-btn:hover {
+  background: var(--gold-subtle);
+  border-color: var(--border-gold);
+  color: var(--gold);
+}
+
+/* ── 트랙 리스트 ─────────────────────────────────────── */
+.track-list {
+  list-style: none;
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px 0;
+}
+
+.track-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  padding: 6px var(--sp-md);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+  animation: slideIn var(--dur-med) var(--ease) both;
+  position: relative;
+}
+
+.track-item::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: var(--gold);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.track-item:hover { background: var(--bg-hover); }
+.track-item:hover::before { opacity: 0.5; }
+
+.track-item:focus { outline: none; background: var(--bg-hover); }
+.track-item:focus::before { opacity: 1; }
+
+.track-thumb { flex-shrink: 0; width: 34px; height: 34px; }
+
+.track-art {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  display: block;
+}
+
+.track-art-placeholder {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-sm);
+  background: var(--bg-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.track-info { flex: 1; min-width: 0; }
+
+.track-name {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.track-artist {
+  display: block;
+  font-size: 10px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.track-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.track-duration {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.track-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.track-item:hover .track-actions { opacity: 1; }
+
+/* 모바일/터치 기기 대응: 액션 버튼 상시 노출 또는 터치 최적화 */
+@media (max-width: 1024px) {
+  .track-actions, .q-actions {
+    opacity: 1 !important;
+  }
+
+  .btn-cue, .btn-queue {
+    padding: 6px 10px;
+    font-size: 13px;
+    min-width: 40px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .q-cue-btn, .q-up-btn, .q-dn-btn, .q-del-btn {
+    width: 34px;
+    height: 34px;
+    font-size: 14px;
+  }
+
+  .track-item, .q-item {
+    padding: 10px var(--sp-md);
+  }
+
+  .track-name, .q-name {
+    font-size: 14px;
+  }
+
+  .track-artist, .q-artist {
+    font-size: 12px;
+  }
+}
+
+/* ── CUE 미리듣기 섹션 ───────────────────────────────── */
+.cue-preview {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  padding: var(--sp-md);
+  background: linear-gradient(0deg, rgba(62,207,133,0.04), transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cue-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cue-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-green);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.cue-vol-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent-green);
+}
+
+.cue-now {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 16px;
+}
+
+.cue-controls {
+  display: flex;
+  gap: var(--sp-sm);
+}
+
+.cue-btn {
+  flex: 1;
+  padding: 6px var(--sp-sm);
+  border-radius: var(--r-sm);
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(62,207,133,0.12);
+  border: 1px solid rgba(62,207,133,0.25);
+  color: var(--accent-green);
+  transition: all var(--dur-fast) var(--ease);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.cue-btn:hover:not(:disabled) { background: rgba(62,207,133,0.22); }
+
+.cue-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.cue-btn.cue-stop {
+  background: rgba(255,80,96,0.1);
+  border-color: rgba(255,80,96,0.2);
+  color: var(--accent-red);
+}
+
+.cue-btn.cue-stop:hover:not(:disabled) { background: rgba(255,80,96,0.2); }
+
+.cue-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+}
+
+.cue-progress-wrap span {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  min-width: 32px;
+}
+
+.cue-progress-bar {
+  flex: 1;
+  height: 3px;
+  background: var(--bg-active);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.cue-progress-fill {
+  height: 100%;
+  background: var(--accent-green);
+  border-radius: 2px;
+  transition: width 80ms linear;
+  min-width: 0;
+}

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>SwingDJ — 스윙 재즈 DJ 플레이어</title>
+  <meta name="description" content="스윙 재즈 댄스를 위한 심플 DJ 플레이어. 플레이리스트, 큐 관리, 분리 출력, 5밴드 EQ 지원." />
+
+  <!-- 스타일 -->
+  <link rel="stylesheet" href="styles/main.css?v=7" />
+  <link rel="stylesheet" href="styles/player.css?v=7" />
+  <link rel="stylesheet" href="styles/playlist.css?v=7" />
+  <link rel="stylesheet" href="styles/equalizer.css?v=7" />
+  <link rel="stylesheet" href="styles/profile.css?v=7" />
+
+  <!-- jsmediatags (ID3 태그 + 앨범아트) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
+</head>
+<body class="show-playlist">
+
+<div id="app" class="show-playlist">
+
+  <!-- ══ 헤더 ═══════════════════════════════════════════ -->
+  <header id="app-header">
+    <div class="app-logo">
+      <span class="logo-icon">🎷</span>
+      <span>Swing<span class="logo-accent">DJ</span></span>
+    </div>
+
+    <!-- 출력 장치 선택 토글 (모바일용) -->
+    <button class="header-mobile-toggle" id="btn-toggle-devices">장치 설정</button>
+
+    <!-- 출력 장치 선택 -->
+    <div class="header-devices" id="header-devices">
+      <div class="device-group">
+        <span class="device-label">🔊 메인 출력</span>
+        <select id="sel-main-device" class="device-select" title="메인 스피커 출력 장치">
+          <option value="default">시스템 기본</option>
+        </select>
+      </div>
+
+      <div class="device-sep"></div>
+
+      <div class="device-group">
+        <span class="device-label cue">🎧 CUE 출력</span>
+        <select id="sel-cue-device" class="device-select" title="헤드폰/모니터 출력 장치 (큐 미리듣기)">
+          <option value="default">시스템 기본</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ 플레이리스트 패널 ═══════════════════════════════ -->
+  <section id="playlist-panel" class="panel" aria-label="플레이리스트">
+    <!-- PlaylistUI.mount()로 렌더됨 -->
+  </section>
+
+  <!-- ══ 메인 플레이어 패널 ══════════════════════════════ -->
+  <main id="player-panel" aria-label="플레이어">
+    <!-- 플레이어 컨트롤 영역 -->
+    <div id="player-inner"></div>
+    <!-- 5밴드 EQ -->
+    <div id="eq-container"></div>
+  </main>
+
+  <!-- ══ 모바일용 탭 ═════════════════════════════════════ -->
+  <div id="mobile-tabs" class="mobile-tabs">
+    <button class="m-tab-btn active" data-target="playlist-panel">플레이리스트</button>
+    <button class="m-tab-btn" data-target="queue-panel">큐</button>
+  </div>
+
+  <!-- ══ 큐 패널 ═════════════════════════════════════════ -->
+  <section id="queue-panel" class="panel" aria-label="큐">
+    <!-- QueueUI.mount()로 렌더됨 -->
+  </section>
+
+  <!-- ══ 상태 바 ═════════════════════════════════════════ -->
+  <div id="status-bar" role="status" aria-live="polite">준비 중…</div>
+
+</div>
+
+<!-- ES Module 진입점 -->
+<script type="module" src="src/main.js?v=7"></script>
+
+</body>
+</html>

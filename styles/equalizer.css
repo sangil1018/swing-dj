@@ -1,0 +1,299 @@
+/* ═══════════════════════════════════════════════════════
+   equalizer.css — 5밴드 EQ 패널 (눈금자 + 1.5배 높이 + 커스텀 프리셋)
+   ═══════════════════════════════════════════════════════ */
+
+/* ── 컨테이너 ────────────────────────────────────────── */
+#eq-container {
+  width: 100%;
+  max-width: 520px;
+}
+
+.eq-wrap {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-md) var(--sp-lg) var(--sp-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-sm);
+  overflow: hidden;
+}
+
+/* ── 헤더 ────────────────────────────────────────────── */
+.eq-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-sm);
+}
+
+.eq-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  flex-shrink: 0;
+}
+
+/* 빌트인 프리셋 버튼들 */
+.eq-presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.eq-preset-btn {
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  font-family: var(--font-ui);
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease);
+  line-height: 1.5;
+}
+
+.eq-preset-btn:hover {
+  color: var(--gold);
+  border-color: var(--border-gold);
+  background: var(--gold-subtle);
+}
+
+.eq-preset-btn.active {
+  background: rgba(240,192,96,0.16);
+  border-color: var(--gold-dim);
+  color: var(--gold);
+  font-weight: 600;
+}
+
+/* ── 슬라이더 본체 (눈금자 + 5밴드) ─────────────────── */
+.eq-body {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+/* ── dB 눈금자 (좌측) ───────────────────────────────── */
+.eq-scale {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  /* 상단(eq-value 영역) + 슬라이더 래퍼 높이에 맞춤 */
+  padding-top: 16px;   /* .eq-value 높이 보정 */
+  padding-bottom: 16px; /* .eq-label 높이 보정 */
+  flex-shrink: 0;
+  width: 28px;
+}
+
+.eq-scale-mark {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  text-align: right;
+  line-height: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+/* 눈금선 */
+.eq-scale-mark::after {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 1px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/* 0dB 중앙선 강조 */
+.eq-scale-mark.zero {
+  color: var(--border-gold);
+}
+
+.eq-scale-mark.zero::after {
+  width: 7px;
+  background: var(--border-gold);
+  opacity: 0.6;
+}
+
+/* ── 5밴드 그리드 ────────────────────────────────────── */
+.eq-sliders {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  align-items: start;
+  overflow: hidden;
+}
+
+/* 각 밴드 컬럼 */
+.eq-band {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* dB 수치 */
+.eq-value {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--gold);
+  min-height: 14px;
+  line-height: 1.4;
+  text-align: center;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.eq-band.band-neg  .eq-value { color: var(--accent-blue); }
+.eq-band.band-zero .eq-value { color: var(--text-muted); }
+
+/* ── 슬라이더 래퍼 (140px) ──────────────────────────── */
+.eq-slider-wrap {
+  position: relative;
+  width: 100%;
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+@media (max-width: 600px) {
+  .eq-slider-wrap {
+    height: 100px;
+  }
+
+  .eq-slider {
+    width: 100px;
+  }
+
+  .eq-wrap {
+    padding: var(--sp-sm) var(--sp-md);
+  }
+
+  .eq-body {
+    gap: 4px;
+  }
+}
+
+/* ±6dB 보조선 */
+.eq-slider-wrap::before,
+.eq-slider-wrap::after {
+  content: '';
+  position: absolute;
+  left: 25%;
+  right: 25%;
+  height: 1px;
+  background: var(--border);
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.eq-slider-wrap::before { top: 25%; }   /* +6dB */
+.eq-slider-wrap::after  { top: 75%; }   /* -6dB */
+
+/* 0dB 중앙 기준선 */
+.eq-centerline {
+  position: absolute;
+  left: 15%;
+  right: 15%;
+  top: 50%;
+  height: 1.5px;
+  background: var(--border-gold);
+  opacity: 0.35;
+  pointer-events: none;
+  border-radius: 1px;
+}
+
+/* ── 세로 슬라이더 (rotate -90deg, absolute 배치) ─── */
+.eq-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  position: absolute;
+  /* width: 회전 전 너비 = 회전 후 세로 길이 (래퍼 높이와 동일) */
+  width: 140px;
+  /* height: 회전 전 높이 = 회전 후 가로 길이 (래퍼 너비, 즉 프레임의 1/5에 해당) */
+  height: 100%;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+  /* 중앙 배치 후 회전 */
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  transform-origin: center center;
+}
+
+/* ── Track (Chrome/Safari) ──────────────────────────── */
+.eq-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  background: linear-gradient(to right,
+    var(--accent-blue)  0%,
+    var(--bg-active)   50%,
+    var(--gold-dim)   100%
+  );
+  border-radius: 2px;
+}
+
+/* ── Thumb (Chrome/Safari) ──────────────────────────── */
+.eq-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 2px solid #09090f;
+  box-shadow: 0 0 0 1px var(--gold-dim), 0 2px 8px rgba(0,0,0,0.6);
+  cursor: pointer;
+  transition: transform 100ms var(--ease), box-shadow 100ms var(--ease);
+}
+
+.eq-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.3);
+  box-shadow: 0 0 0 2px var(--gold), 0 0 14px var(--gold-glow);
+}
+
+.eq-slider::-webkit-slider-thumb:active {
+  transform: scale(1.12);
+}
+
+/* ── Track / Thumb (Firefox) ────────────────────────── */
+.eq-slider::-moz-range-track {
+  height: 4px;
+  background: var(--bg-active);
+  border-radius: 2px;
+}
+
+.eq-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 2px solid #09090f;
+  cursor: pointer;
+}
+
+/* 밴드 주파수 라벨 */
+.eq-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-align: center;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  letter-spacing: 0.2px;
+  min-height: 12px;
+}
+
+

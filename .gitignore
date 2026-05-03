@@ -1,0 +1,22 @@
+# .gitignore for SwingDJ
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Private memory and tmp files (Gemini CLI specific)
+.gemini/
+memory/
+MEMORY.md
+
+# Log files
+*.log
+
+# Dependencies (if any were used via npm/yarn, though this project uses CDN/ESM)
+node_modules/
+
+# Local server config or temporary files
+.vscode/
+.idea/
+*.swp
+*.bak
