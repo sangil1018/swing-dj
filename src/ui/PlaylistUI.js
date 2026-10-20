@@ -87,23 +87,20 @@ export class PlaylistUI {
       e.target.value = '';
     });
 
-    // 드래그앤드롭 — getAsFileSystemHandle 우선 시도
-    this._dropZone.addEventListener('dragover', (e) => {
+    // 드래그앤드롭 — 패널 전체에서 getAsFileSystemHandle 우선 시도
+    const handleFileDrop = async (e) => {
       e.preventDefault();
-      this._dropZone.classList.add('drag-over');
-    });
-    this._dropZone.addEventListener('dragleave', () => {
+      e.stopPropagation();
       this._dropZone.classList.remove('drag-over');
-    });
-    this._dropZone.addEventListener('drop', async (e) => {
-      e.preventDefault();
-      this._dropZone.classList.remove('drag-over');
+      // 내부 트랙 정렬이나 큐에서 가져오는 드롭이면 무시
+      if (e.dataTransfer.types.includes('pl-internal') || e.dataTransfer.types.includes('q-to-pl')) return;
+
       if (e.dataTransfer.items?.length) {
         const handles = [], files = [];
         for (const item of Array.from(e.dataTransfer.items)) {
           if (item.kind !== 'file') continue;
           try {
-            const h = await item.getAsFileSystemHandle();
+            const h = await item.getAsFileSystemHandle?.();
             if (h?.kind === 'file') { handles.push(h); continue; }
           } catch (_) {}
           const f = item.getAsFile();
@@ -111,10 +108,19 @@ export class PlaylistUI {
         }
         if (handles.length && this.onFilesWithHandles) this.onFilesWithHandles(handles);
         if (files.length)   this._emitFiles(files);
-      } else if (e.dataTransfer.files.length) {
+      } else if (e.dataTransfer.files?.length) {
         this._emitFiles(e.dataTransfer.files);
       }
+    };
+
+    this._dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      this._dropZone.classList.add('drag-over');
     });
+    this._dropZone.addEventListener('dragleave', () => {
+      this._dropZone.classList.remove('drag-over');
+    });
+    this._dropZone.addEventListener('drop', handleFileDrop);
 
     // 정렬
     this.container.querySelector('#pl-sort').addEventListener('change', (e) => {
@@ -128,12 +134,9 @@ export class PlaylistUI {
       this._render(this.pm.tracks);
     });
 
-    // 파일 드롭을 전체 패널에서도 받기
+    // 파일 드롭을 전체 패널에서도 받기 (중복 실행 방지)
     this.container.addEventListener('dragover', (e) => e.preventDefault());
-    this.container.addEventListener('drop', (e) => {
-      e.preventDefault();
-      if (e.dataTransfer.files.length) this._emitFiles(e.dataTransfer.files);
-    });
+    this.container.addEventListener('drop', handleFileDrop);
   }
 
   _emitFiles(files) {
@@ -158,11 +161,12 @@ export class PlaylistUI {
     }
     this._dropZone.style.display = 'none';
 
-    this._listEl.innerHTML = filtered.map((t, idx) => {
-      const isPlayed  = this._playedTrackIds.has(t.id) ? 'played' : '';
+    this._listEl.innerHTML = filtered.map((t) => {
+      const origIdx  = tracks.indexOf(t);
+      const isPlayed = this._playedTrackIds.has(t.id) ? 'played' : '';
       
       return `
-      <li class="track-item ${isPlayed}" data-id="${t.id}" data-idx="${idx}" draggable="true" tabindex="0">
+      <li class="track-item ${isPlayed}" data-id="${t.id}" data-idx="${origIdx}" draggable="true" tabindex="0">
         <div class="track-thumb">
           ${t.albumArt
             ? `<img src="${t.albumArt}" alt="cover" class="track-art" />`
@@ -286,5 +290,5 @@ export class PlaylistUI {
 }
 
 function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

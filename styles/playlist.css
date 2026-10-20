@@ -237,6 +237,161 @@
   }
 }
 
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.track-item.played, .q-item.played {
+  opacity: 0.45;
+}
+.track-item.played .track-name, .q-item.played .q-name {
+  text-decoration: line-through;
+}
+
+.q-item.playing {
+  background: rgba(240, 192, 96, 0.12);
+  border-left: 2px solid var(--gold);
+}
+.q-item.playing .q-name {
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.q-item.missing {
+  background: rgba(255, 80, 96, 0.12);
+  border-left: 2px solid var(--accent-red);
+}
+.q-item.missing .q-name {
+  color: var(--accent-red);
+}
+.q-item.missing .q-name::before {
+  content: '⚠️ ';
+}
+
+.track-item.drag-target, .q-item.drag-target {
+  border-top: 2px solid var(--gold);
+}
+.track-item.dragging, .q-item.dragging {
+  opacity: 0.4;
+}
+
+.queue-list {
+  list-style: none;
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px 0;
+}
+
+.q-empty {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: var(--sp-xl) var(--sp-md);
+  line-height: 1.6;
+}
+
+.q-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  padding: 6px var(--sp-md);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+  position: relative;
+}
+.q-item:hover, .q-item:focus {
+  outline: none;
+  background: var(--bg-hover);
+}
+
+.q-num {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  min-width: 18px;
+  text-align: center;
+}
+
+.q-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.q-name {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.q-artist {
+  display: block;
+  font-size: 10px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.q-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.q-dur {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.q-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.q-item:hover .q-actions, .q-item:focus .q-actions {
+  opacity: 1;
+}
+
+.btn-cue, .btn-queue, .q-up-btn, .q-dn-btn, .q-del-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  font-size: 10px;
+  padding: 3px 6px;
+  transition: all var(--dur-fast) var(--ease);
+}
+.btn-cue:hover {
+  color: var(--accent-green);
+  border-color: rgba(62, 207, 133, 0.35);
+}
+.btn-queue:hover, .q-up-btn:hover:not(:disabled), .q-dn-btn:hover:not(:disabled) {
+  color: var(--gold);
+  border-color: var(--border-gold);
+}
+.q-del-btn:hover {
+  color: var(--accent-red);
+  border-color: rgba(255, 80, 96, 0.35);
+}
+.q-up-btn:disabled, .q-dn-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
 /* ── CUE 미리듣기 섹션 ───────────────────────────────── */
 .cue-preview {
   flex-shrink: 0;

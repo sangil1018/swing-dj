@@ -14,14 +14,16 @@ async function detectBPM(data, sampleRate) {
     const numFrames = Math.floor(data.length / frameSize);
     const energies = new Float32Array(numFrames);
 
+    let maxE = 0;
     for (let i = 0; i < numFrames; i++) {
       let e = 0;
       const start = i * frameSize;
       for (let j = 0; j < frameSize; j++) e += data[start + j] ** 2;
-      energies[i] = e / frameSize;
+      const frameE = e / frameSize;
+      energies[i] = frameE;
+      if (frameE > maxE) maxE = frameE;
     }
 
-    const maxE = Math.max(...energies);
     if (maxE < 1e-10) return null;
 
     const threshold = maxE * 0.25;

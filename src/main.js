@@ -2,21 +2,21 @@
  * main.js — SwingDJ 앱 초기화 및 모듈 조율
  */
 
-import { AudioEngine }      from './audio/AudioEngine.js?v=6';
-import { Player }           from './audio/Player.js?v=6';
-import { CuePlayer }        from './audio/CuePlayer.js?v=6';
-import { detectBPM }        from './audio/BPMDetector.js?v=6';
-import { PlaylistManager }  from './playlist/PlaylistManager.js?v=6';
-import { QueueManager }     from './playlist/QueueManager.js?v=6';
-import { loadFiles }        from './utils/FileLoader.js?v=6';
-import { Storage }          from './utils/Storage.js?v=6';
-import { ProfileManager }   from './utils/ProfileManager.js?v=6';
-import { DeviceSelector }   from './ui/DeviceSelector.js?v=6';
-import { EQPanel }          from './ui/EQPanel.js?v=6';
-import { PlayerUI }         from './ui/PlayerUI.js?v=6';
-import { PlaylistUI }       from './ui/PlaylistUI.js?v=6';
-import { QueueUI }          from './ui/QueueUI.js?v=6';
-import { ProfileUI }        from './ui/ProfileUI.js?v=6';
+import { AudioEngine }      from './audio/AudioEngine.js';
+import { Player }           from './audio/Player.js';
+import { CuePlayer }        from './audio/CuePlayer.js';
+import { detectBPM }        from './audio/BPMDetector.js';
+import { PlaylistManager }  from './playlist/PlaylistManager.js';
+import { QueueManager }     from './playlist/QueueManager.js';
+import { loadFiles, getNextTrackId } from './utils/FileLoader.js';
+import { Storage }          from './utils/Storage.js';
+import { ProfileManager }   from './utils/ProfileManager.js';
+import { DeviceSelector }   from './ui/DeviceSelector.js';
+import { EQPanel }          from './ui/EQPanel.js';
+import { PlayerUI }         from './ui/PlayerUI.js';
+import { PlaylistUI }       from './ui/PlaylistUI.js';
+import { QueueUI }          from './ui/QueueUI.js';
+import { ProfileUI }        from './ui/ProfileUI.js';
 
 /* ── 모듈 인스턴스 ───────────────────────────────────── */
 const engine  = new AudioEngine();
@@ -64,6 +64,7 @@ const profileUI = new ProfileUI(
     mainDeviceId: document.querySelector('#sel-main-device')?.value ?? 'default',
     cueDeviceId:  document.querySelector('#sel-cue-device')?.value  ?? 'default',
     tracks:       pm.tracks,   // fileHandle 포함
+    queue:        qm.queue,    // 큐 목록 포함
   }),
   // applyProfile: 프로파일 적용
   applyProfile
@@ -77,9 +78,20 @@ function setPlayingState(track) {
   playedTrackIds.add(track.id);
   
   // UI 업데이트
+  playerUI._syncState();
   queueUI.updatePlayingState(track.id);
   queueUI.updatePlayedState(playedTrackIds);
   playlistUI.updatePlayedState(playedTrackIds);
+}
+
+function resetPlayedHistory() {
+  playedTrackIds.clear();
+  if (player.currentTrack && player.isPlaying) {
+    playedTrackIds.add(player.currentTrack.id);
+  }
+  queueUI.updatePlayedState(playedTrackIds);
+  playlistUI.updatePlayedState(playedTrackIds);
+  showToast('재생 이력이 초기화되었습니다');
 }
 
 /* ── 초기화 ──────────────────────────────────────────── */
@@ -138,10 +150,12 @@ async function init() {
   playlistUI.onFilesDropped = handleFilesFromInput;
   playlistUI.onFilesWithHandles = handleFilesWithHandles;
 
-  queueUI.onTrackDropFromPlaylist = (trackId) => {
+  queueUI.onTrackDropFromPlaylist = (trackId, insertIdx) => {
     const t = pm.getTrackById(trackId);
-    if (t) addToQueue(t);
+    if (t) addToQueue(t, insertIdx);
   };
+
+  queueUI.onResetHistory = () => resetPlayedHistory();
 
   // 플레이리스트에서 CUE(미리듣기) 버튼 클릭 시
   playlistUI.onCue = async (track) => {
@@ -255,10 +269,13 @@ async function init() {
   document.querySelector('#sel-main-device')?.addEventListener('change', saveDeviceSettings);
   document.querySelector('#sel-cue-device')?.addEventListener('change', saveDeviceSettings);
 
-  // 전체 페이지 드롭 (드래그앤드롭)
+  // 전체 페이지 드롭 (드래그앤드롭 — 내부 트랙 이동 무시)
   document.body.addEventListener('dragover', (e) => e.preventDefault());
   document.body.addEventListener('drop', async (e) => {
     e.preventDefault();
+    if (e.dataTransfer.types.includes('pl-internal') || e.dataTransfer.types.includes('q-internal') || e.dataTransfer.types.includes('q-to-pl')) {
+      return;
+    }
     // File System Access API: 핸들 추출 시도
     if (e.dataTransfer.items?.length) {
       const handles = [];
@@ -266,7 +283,7 @@ async function init() {
       for (const item of Array.from(e.dataTransfer.items)) {
         if (item.kind !== 'file') continue;
         try {
-          const h = await item.getAsFileSystemHandle();
+          const h = await item.getAsFileSystemHandle?.();
           if (h?.kind === 'file') {
             handles.push(h);
             continue;
@@ -277,7 +294,7 @@ async function init() {
       }
       if (handles.length) await handleFilesWithHandles(handles);
       if (files.length)   await handleFilesFromInput(files);
-    } else if (e.dataTransfer.files.length) {
+    } else if (e.dataTransfer.files?.length) {
       await handleFilesFromInput(e.dataTransfer.files);
     }
   });
@@ -357,13 +374,20 @@ async function applyProfile(data) {
   if (data.cueDeviceId)        s.cueDeviceId  = data.cueDeviceId;
   Storage.saveSettings(s);
 
-  // 5. 플레이리스트 복원
+  // 5. 플레이리스트 및 큐 복원
   if (data.tracks?.length > 0) {
+    player.stop();
+    cue.stop();
     pm.clear();
     qm.clear();
+    playedTrackIds.clear();
+    queueUI.updatePlayingState(null);
+    queueUI.updatePlayedState(playedTrackIds);
+    playlistUI.updatePlayedState(playedTrackIds);
 
     let loadedCount  = 0;
     let missingCount = 0;
+    const restoredByIdx = new Map();
 
     for (const meta of data.tracks) {
       if (meta.file) {
@@ -371,14 +395,21 @@ async function applyProfile(data) {
         meta.file._handle = meta.fileHandle;
         const tracks = await loadFiles([meta.file]);
         if (tracks.length) {
-          pm._addDirect(tracks[0]);
-          qm.enqueue(tracks[0]);
+          const t = tracks[0];
+          // 프로파일에 저장되어 있던 BPM 및 재생시간 메타데이터 보존
+          if (meta.bpm)           t.bpm           = meta.bpm;
+          if (meta.duration)      t.duration      = meta.duration;
+          if (meta.durationLabel && meta.durationLabel !== '0:00' && meta.durationLabel !== '--:--') {
+            t.durationLabel = meta.durationLabel;
+          }
+          pm._addDirect(t);
+          restoredByIdx.set(meta.idx, t);
           loadedCount++;
         }
       } else {
         // 핸들 없거나 권한 거부 → 메타데이터만 표시
         const placeholder = {
-          id:            ++pm._idCounter,
+          id:            getNextTrackId(),
           file:          null, // <--- 파일 없음 표시
           fileHandle:    meta.fileHandle || null,
           name:          meta.name,
@@ -387,11 +418,24 @@ async function applyProfile(data) {
           bpm:           meta.bpm    || null,
           duration:      meta.duration || 0,
           durationLabel: meta.durationLabel || '0:00',
-          albumArt:      meta.albumArt || null,
+          albumArt:      null,
           _unavailable:  true,
         };
         pm._addDirect(placeholder);
+        restoredByIdx.set(meta.idx, placeholder);
         missingCount++;
+      }
+    }
+
+    // 저장된 큐 순서 복원 (하위 호환: queueIndices가 없으면 전체 트랙 추가)
+    if (Array.isArray(data.queueIndices)) {
+      for (const idx of data.queueIndices) {
+        const t = restoredByIdx.get(idx);
+        if (t) qm.enqueue(t);
+      }
+    } else {
+      for (const t of pm.tracks) {
+        if (t.file) qm.enqueue(t);
       }
     }
 
@@ -412,16 +456,20 @@ async function applyProfile(data) {
 }
 
 /* ── 큐 관리 ─────────────────────────────────────────── */
-function addToQueue(track) {
+function addToQueue(track, insertIdx = null) {
   if (playedTrackIds.has(track.id)) {
-    showToast(`이미 재생된 곡입니다 (추가 방지): ${track.name}`);
+    showToast(`이미 재생된 곡입니다 ('이력 초기화' 후 추가 가능): ${track.name}`);
     return;
   }
   if (qm.queue.some(t => t.id === track.id)) {
     showToast(`이미 큐에 대기 중인 곡입니다: ${track.name}`);
     return;
   }
-  qm.enqueue(track);
+  if (typeof insertIdx === 'number' && !isNaN(insertIdx)) {
+    qm.insertAt(insertIdx, track);
+  } else {
+    qm.enqueue(track);
+  }
   showToast(`큐에 추가: ${track.name}`);
 }
 

@@ -4,13 +4,13 @@ echo "  SwingDJ 서버를 종료합니다 (포트 8080 해제)"
 echo "==================================================="
 echo ""
 
-# 8080 포트를 사용하는 프로세스 찾기
-PID=$(lsof -ti:8080)
+# 8080 포트에서 LISTENING 중인 서버 프로세스만 찾기 (클라이언트 브라우저 제외)
+PID=$(lsof -tiTCP:8080 -sTCP:LISTEN)
 
 if [ -z "$PID" ]; then
     echo "포트 8080에서 실행 중인 서버를 찾을 수 없습니다."
 else
-    echo "[종료 처리 중] 프로세스 ID: $PID"
+    echo "[종료 처리 중] 서버 프로세스 ID: $PID"
     kill -9 $PID
     echo "정상적으로 종료되었습니다."
 fi

@@ -49,6 +49,7 @@ export class AudioEngine {
       { type: 'peaking',   freq: 4000,  Q: 1.0,  gain: 0 },
       { type: 'highshelf', freq: 16000, Q: null, gain: 0 },
     ];
+    this._targetBands = [0, 0, 0, 0, 0];
 
     this.eqFilters = bands.map((b) => {
       const f = ctx.createBiquadFilter();
@@ -117,19 +118,23 @@ export class AudioEngine {
   /* ── EQ 밴드 조정 ───────────────────────────────────── */
   setEQBand(index, gainDb) {
     if (!this.eqFilters[index]) return;
+    this._targetBands[index] = gainDb;
     const t = this.mainContext.currentTime;
     this.eqFilters[index].gain.setTargetAtTime(gainDb, t, 0.015);
     
-    // 비트 퍼펙트 바이패스 여부 확인
-    setTimeout(() => this._updateAudioPath(), 30);
+    // 비트 퍼펙트 바이패스 여부 확인 (디바운스)
+    if (this._bypassTimer) clearTimeout(this._bypassTimer);
+    this._bypassTimer = setTimeout(() => this._updateAudioPath(), 60);
   }
 
   /* 비트 퍼펙트(Hard Bypass) 로직: 0dB 시 필터 체인을 완전히 거치지 않음 */
   _updateAudioPath() {
     if (!this.mainInputProxy || !this.mainGain) return;
 
-    // 모든 필터의 gain이 0인지 확인
-    const isFlat = this.eqFilters.every(f => Math.abs(f.gain.value) < 0.01);
+    // 모든 필터의 목표 gain이 0인지 확인
+    const isFlat = (this._targetBands || []).every(g => Math.abs(g) < 0.01);
+    if (this._isFlatConnected === isFlat) return;
+    this._isFlatConnected = isFlat;
     
     this.mainInputProxy.disconnect();
     
@@ -146,7 +151,7 @@ export class AudioEngine {
   }
 
   getEQBands() {
-    return this.eqFilters.map((f) => f.gain.value);
+    return this._targetBands ? [...this._targetBands] : this.eqFilters.map((f) => f.gain.value);
   }
 
   /* ── 볼륨 제어 ──────────────────────────────────────── */

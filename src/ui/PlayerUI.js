@@ -127,6 +127,9 @@ export class PlayerUI {
     this._optVisualizer.addEventListener('change', (e) => {
       this.showVisualizer = e.target.checked;
       this._canvas.style.display = this.showVisualizer ? 'block' : 'none';
+      if (this.showVisualizer && !this.player.isPlaying) {
+        this._drawSpectrum();
+      }
       if (this.onOptionChange) this.onOptionChange('visualizer', this.showVisualizer);
     });
 
@@ -134,7 +137,7 @@ export class PlayerUI {
     this.container.querySelector('#btn-play').addEventListener('click', () => {
       this.engine.resume();
       this.player.toggle();
-      this._updatePlayIcon();
+      this._syncState();
     });
     this.container.querySelector('#btn-prev').addEventListener('click', () => this.onPrev?.());
     this.container.querySelector('#btn-next').addEventListener('click', () => this.onNext?.());
@@ -148,7 +151,7 @@ export class PlayerUI {
       volLabel.textContent = `${Math.round(v * 100)}%`;
     });
 
-    // 진행 바 클릭/드래그로 시크
+    // 진행 바 클릭/드래그/터치로 시크
     this._setupSeek();
 
     // 키보드 'p' → 재생/정지 (리스트 아이템 포커스 제외)
@@ -161,12 +164,12 @@ export class PlayerUI {
         e.preventDefault();
         this.engine.resume();
         this.player.toggle();
-        this._updatePlayIcon();
+        this._syncState();
       }
     });
 
-    // 렌더 루프 시작
-    this._startRenderLoop();
+    // 정지 파형 1회 초기 렌더
+    this._drawSpectrum();
   }
 
   /* ── 트랙 표시 업데이트 ─────────────────────────────── */
@@ -174,10 +177,18 @@ export class PlayerUI {
     this._titleEl.textContent  = track.name;
     this._artistEl.textContent = track.artist;
 
+    this._albumArt.innerHTML = '';
     if (track.albumArt) {
-      this._albumArt.innerHTML = `<img src="${track.albumArt}" alt="album art" class="album-art-img" />`;
+      const img = document.createElement('img');
+      img.src = track.albumArt;
+      img.alt = 'album art';
+      img.className = 'album-art-img';
+      this._albumArt.appendChild(img);
     } else {
-      this._albumArt.innerHTML = `<div class="album-art-default">🎷</div>`;
+      const def = document.createElement('div');
+      def.className = 'album-art-default';
+      def.textContent = '🎷';
+      this._albumArt.appendChild(def);
     }
 
     if (track.bpm) {
@@ -186,6 +197,9 @@ export class PlayerUI {
     } else {
       this._bpmEl.style.display = 'none';
     }
+
+    this._updateProgress();
+    this._syncState();
   }
 
   updateBPM(track) {
@@ -216,25 +230,52 @@ export class PlayerUI {
     this.container.querySelector('#icon-pause').style.display = this.player.isPlaying ? 'block' : 'none';
   }
 
-  /* ── 시크 조작 ──────────────────────────────────────── */
-  _setupSeek() {
-    const seek = (e) => {
-      const rect = this._progressBar.getBoundingClientRect();
-      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      this.player.seek(ratio * this.player.duration);
-    };
-
-    this._progressBar.addEventListener('mousedown', (e) => {
-      this._isSeeking = true;
-      seek(e);
-    });
-    document.addEventListener('mousemove', (e) => {
-      if (this._isSeeking) seek(e);
-    });
-    document.addEventListener('mouseup', () => { this._isSeeking = false; });
+  _syncState() {
+    this._updatePlayIcon();
+    if (this._playerMain) {
+      this._playerMain.classList.toggle('player-playing', this.player.isPlaying);
+    }
+    if (this.player.isPlaying) {
+      this._startRenderLoop();
+    } else {
+      if (this._rafId) {
+        cancelAnimationFrame(this._rafId);
+        this._rafId = null;
+      }
+      if (this.showVisualizer) this._drawSpectrum();
+    }
   }
 
-  /* ── rAF 렌더 루프 ──────────────────────────────────── */
+  /* ── 시크 조작 (마우스 + 터치 통합 PointerEvent) ───── */
+  _setupSeek() {
+    const seek = (clientX) => {
+      const rect = this._progressBar.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      this.player.seek(ratio * this.player.duration);
+      this._updateProgress();
+    };
+
+    this._progressBar.style.touchAction = 'none';
+    this._progressBar.addEventListener('pointerdown', (e) => {
+      this._isSeeking = true;
+      this._progressBar.setPointerCapture?.(e.pointerId);
+      seek(e.clientX);
+    });
+    this._progressBar.addEventListener('pointermove', (e) => {
+      if (this._isSeeking) seek(e.clientX);
+    });
+    const endSeek = (e) => {
+      if (this._isSeeking) {
+        this._isSeeking = false;
+        this._progressBar.releasePointerCapture?.(e.pointerId);
+      }
+    };
+    this._progressBar.addEventListener('pointerup', endSeek);
+    this._progressBar.addEventListener('pointercancel', endSeek);
+  }
+
+  /* ── rAF 렌더 루프 (재생 중일 때만 실행) ────────────── */
   _startRenderLoop() {
     if (this._rafId) return;
     const tick = () => {
@@ -242,7 +283,12 @@ export class PlayerUI {
       if (this.showVisualizer) {
         this._drawSpectrum();
       }
-      this._rafId = requestAnimationFrame(tick);
+      if (this.player.isPlaying) {
+        this._rafId = requestAnimationFrame(tick);
+      } else {
+        this._rafId = null;
+        this._syncState();
+      }
     };
     this._rafId = requestAnimationFrame(tick);
   }
@@ -254,11 +300,6 @@ export class PlayerUI {
     this._progressThumb.style.left  = `${pct}%`;
     this._timeCur.textContent = formatTime(this.player.currentTime);
     this._timeDur.textContent = formatTime(this.player.duration);
-    // 재생 아이콘 + playing 클래스 동기화
-    this._updatePlayIcon();
-    if (this._playerMain) {
-      this._playerMain.classList.toggle('player-playing', this.player.isPlaying);
-    }
   }
 
   /* ── 스펙트럼 비주얼라이저 ──────────────────────────── */

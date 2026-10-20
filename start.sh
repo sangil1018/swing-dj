@@ -18,7 +18,7 @@ open_browser() {
 if command -v python3 &> /dev/null; then
     echo "Python3 환경이 감지되었습니다. (python3 -m http.server 실행)"
     open_browser
-    python3 -m http.server 8080
+    python3 -m http.server 8080 --bind 127.0.0.1
     exit 0
 fi
 
@@ -26,7 +26,7 @@ fi
 if command -v python &> /dev/null; then
     echo "Python 환경이 감지되었습니다. (python -m http.server 실행)"
     open_browser
-    python -m http.server 8080
+    python -m http.server 8080 --bind 127.0.0.1
     exit 0
 fi
 
@@ -34,7 +34,7 @@ fi
 if command -v npx &> /dev/null; then
     echo "Node.js 환경이 감지되었습니다. (npx http-server 실행)"
     open_browser
-    npx -y http-server -p 8080 -c-1
+    npx -y http-server -p 8080 -a 127.0.0.1 -c-1
     exit 0
 fi
 

@@ -3,15 +3,13 @@
  */
 import { formatDuration } from './TimeFormatter.js';
 
-let _tagReaderReady = typeof jsmediatags !== 'undefined';
-
 function readTags(file) {
   return new Promise((resolve) => {
-    if (!_tagReaderReady || typeof jsmediatags === 'undefined') {
+    if (typeof window.jsmediatags === 'undefined') {
       resolve({});
       return;
     }
-    jsmediatags.read(file, {
+    window.jsmediatags.read(file, {
       onSuccess: (tag) => resolve(tag.tags || {}),
       onError: () => resolve({}),
     });
@@ -32,6 +30,10 @@ function extractAlbumArt(tags) {
 }
 
 let _trackIdCounter = 0;
+
+export function getNextTrackId() {
+  return ++_trackIdCounter;
+}
 
 export async function loadFiles(fileList) {
   const tracks = [];

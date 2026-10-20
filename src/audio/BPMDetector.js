@@ -4,8 +4,49 @@
  */
 
 /**
- * BPMDetector.js — 웹 워커를 이용한 비동기 BPM 감지
+ * BPMDetector.js — 웹 워커를 이용한 비동기 BPM 감지 (싱글톤 워커 + 작업 큐)
  */
+
+let _worker = null;
+const _queue = [];
+let _processing = false;
+
+function getWorker() {
+  if (!_worker) {
+    _worker = new Worker(new URL('./BPMWorker.js', import.meta.url));
+  }
+  return _worker;
+}
+
+function processNext() {
+  if (_processing || _queue.length === 0) return;
+  _processing = true;
+  const { data, sampleRate, resolve } = _queue.shift();
+
+  try {
+    const worker = getWorker();
+    worker.onmessage = (e) => {
+      _processing = false;
+      resolve(e.data.bpm);
+      processNext();
+    };
+    worker.onerror = () => {
+      _processing = false;
+      if (_worker) {
+        _worker.terminate();
+        _worker = null;
+      }
+      resolve(null);
+      processNext();
+    };
+    worker.postMessage({ buffer: data, sampleRate }, [data.buffer]);
+  } catch (e) {
+    console.warn('BPM worker failed:', e);
+    _processing = false;
+    resolve(null);
+    processNext();
+  }
+}
 
 export async function detectBPM(audioBuffer) {
   return new Promise((resolve) => {
@@ -15,24 +56,10 @@ export async function detectBPM(audioBuffer) {
       const analyzeSamples = Math.min(audioBuffer.length, sampleRate * 60);
       const data = audioBuffer.getChannelData(0).slice(0, analyzeSamples);
 
-      // 워커 생성 (Blob 이용)
-      const worker = new Worker(new URL('./BPMWorker.js', import.meta.url));
-      
-      worker.onmessage = (e) => {
-        resolve(e.data.bpm);
-        worker.terminate();
-      };
-
-      worker.onerror = () => {
-        resolve(null);
-        worker.terminate();
-      };
-
-      // 구조화된 복제(Structured Clone) 대신 Transferable objects 사용 검토 가능하나
-      // 여기서는 slice된 Float32Array 전달
-      worker.postMessage({ buffer: data, sampleRate }, [data.buffer]);
+      _queue.push({ data, sampleRate, resolve });
+      processNext();
     } catch (e) {
-      console.warn('BPM worker failed:', e);
+      console.warn('BPM detect preparation failed:', e);
       resolve(null);
     }
   });

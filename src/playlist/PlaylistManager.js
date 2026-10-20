@@ -14,11 +14,19 @@ export class PlaylistManager {
   addTracks(newTracks) {
     // 중복 파일명+크기 제거 (파일 없는 플레이스홀더는 항상 추가)
     const existing = new Set(
-      this._tracks.filter(t => t.file).map(t => t.file.name + t.file.size)
+      this._tracks.filter(t => t.file).map(t => t.file.name + ':' + t.file.size)
     );
-    const added = newTracks.filter(
-      t => !t.file || !existing.has(t.file.name + t.file.size)
-    );
+    const added = [];
+    for (const t of newTracks) {
+      const key = t.file ? (t.file.name + ':' + t.file.size) : null;
+      if (!key || !existing.has(key)) {
+        if (key) existing.add(key);
+        added.push(t);
+      } else {
+        // 중복으로 제외된 트랙의 ObjectURL 메모리 해제
+        if (t.albumArt) URL.revokeObjectURL(t.albumArt);
+      }
+    }
     this._tracks.push(...added);
     this._notify();
     return added;
@@ -31,7 +39,7 @@ export class PlaylistManager {
   }
 
   removeTrack(id) {
-    const idx = this._tracks.findIndex((t) => t.id === id);
+    const idx = this._tracks.findIndex((t) => String(t.id) === String(id));
     if (idx !== -1) {
       const [removed] = this._tracks.splice(idx, 1);
       // ObjectURL 해제
@@ -41,7 +49,7 @@ export class PlaylistManager {
   }
 
   getTrackById(id) {
-    return this._tracks.find((t) => t.id === id) || null;
+    return this._tracks.find((t) => String(t.id) === String(id)) || null;
   }
 
   reorder(fromIdx, toIdx) {

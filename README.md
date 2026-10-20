@@ -11,13 +11,14 @@ SwingDJ는 스윙 댄스 행사나 파티에서 음악을 플레이하는 DJ들�
 *   **🎛️ 5밴드 이퀄라이저 (EQ) & 비트 퍼펙트**: 사운드 톤 조절은 물론, EQ가 Flat(0dB)일 때는 필터를 완전히 우회(Hard Bypass)하여 원음 그대로를 출력하는 **비트 퍼펙트(Bit-Perfect)** 기능을 지원합니다.
 *   **⚡ 고성능 BPM 자동 감지**: 웹 워커(Web Worker) 기술을 사용하여 백그라운드에서 UI 끊김 없이 곡의 템포(BPM)를 정확하게 분석합니다.
 *   **🛡️ 리미터(Limiter) 내장**: 출력단에 디지털 리미터를 배치하여 과도한 EQ 증폭 시에도 클리핑(소리 깨짐) 없이 깨끗한 음질을 보장합니다.
-*   **💾 프로파일 저장**: 현재 세팅된 플레이리스트, 큐, 볼륨, EQ 설정 등을 로컬에 저장하고 언제든 다시 불러올 수 있습니다.
+*   **💾 프로파일 저장**: 현재 세팅된 플레이리스트, 큐 순서, 볼륨, EQ 설정 등을 로컬에 저장하고 언제든 다시 불러올 수 있습니다. (분석된 BPM·재생시간도 함께 복원)
 *   **📱 최적화된 모바일 UX**: 스마트폰 및 태블릿 환경을 고려한 터치 타겟 최적화와 전용 탭 인터페이스를 제공합니다.
 
 ## 🛠️ 기술 사양 (Technical Specs)
 
 *   **Audio Engine**: Web Audio API (BiquadFilter, DynamicsCompressor, Analyser)
-*   **Concurrency**: Web Workers (BPM 분석 쓰레드 분리)
+*   **Concurrency**: Web Worker 싱글톤 + 순차 작업 큐 (BPM 분석 쓰레드 분리)
+*   **Power Saving**: 재생/CUE 중일 때만 렌더 루프(rAF) 동작
 *   **Storage**: IndexedDB (Profile Data), LocalStorage (Settings)
 *   **Security**: HTML-Safe Metadata Rendering, File System Access API
 *   **Fidelity**: 48kHz Internal Processing, Bit-Perfect Hard Bypass
@@ -33,7 +34,16 @@ SwingDJ는 순수 HTML, CSS, JavaScript(ES Modules)로 작성되어 있어 별�
     ./start.sh
     ```
 
-*(만약 직접 수동으로 실행하고 싶다면, 터미널에서 `python -m http.server 8080` 또는 `npx http-server -p 8080` 을 입력한 후 브라우저에서 `http://localhost:8080` 으로 접속하셔도 됩니다.)*
+*(만약 직접 수동으로 실행하고 싶다면, 터미널에서 `python -m http.server 8080 --bind 127.0.0.1` 또는 `npx http-server -p 8080 -a 127.0.0.1` 을 입력한 후 브라우저에서 `http://localhost:8080` 으로 접속하셔도 됩니다.)*
+
+> 🔒 **보안**: 실행 스크립트는 서버를 `127.0.0.1`(로컬 전용)에만 바인딩하므로, 행사장 공용 Wi-Fi에서도 같은 네트워크의 다른 기기가 접근할 수 없습니다. `stop.bat` / `stop.sh`는 8080 포트에서 **LISTENING 중인 서버 프로세스만** 종료합니다.
+
+## 📝 변경 이력
+
+*   **버그 수정**: 검색 중 플레이리스트 드래그 순서 꼬임, 파일 드롭 중복 처리 및 파일 핸들 유실, 프로파일 복원 시 BPM/재생시간 초기화, 재생 완료 곡 재추가 불가 문제를 수정했습니다.
+*   **기능 개선**: 플레이리스트→큐 **원하는 위치 삽입**, 큐 **이력 초기화** 버튼, 프로파일의 **큐 순서 저장**, 모바일 **터치 시크** 지원.
+*   **성능/안정성**: BPM 워커 싱글톤화 및 `RangeError` 방지, 유휴 시 rAF 중단, EQ 바이패스 전환 시 끊김 방지, 앨범아트 ObjectURL 누수 해결.
+*   **스크립트**: 로컬 전용 바인딩, 안전한 종료, Python/Node 미설치 시 오류 안내.
 
 ### 💡 권장 브라우저 (중요)
 모든 운영체제(Windows, Intel/Apple Silicon Mac)에서 **Google Chrome** 또는 **Microsoft Edge** 사용을 강력히 권장합니다.

@@ -61,13 +61,15 @@ export class ProfileManager {
    *   tracks 각 항목에 track.fileHandle (FileSystemFileHandle | null) 있어야 함
    */
   async saveProfile(name, appState) {
-    const { eqBands, mainVolume, cueVolume, mainDeviceId, cueDeviceId, tracks } = appState;
+    const { eqBands, mainVolume, cueVolume, mainDeviceId, cueDeviceId, tracks, queue } = appState;
     const id = `p_${Date.now()}`;
 
     // 플레이리스트 메타데이터 추출 + 핸들 저장
     const playlist = [];
+    const trackIdToIdx = new Map();
     for (let i = 0; i < tracks.length; i++) {
       const t = tracks[i];
+      trackIdToIdx.set(t.id, i);
       const hasHandle = !!(t.fileHandle);
 
       if (hasHandle) {
@@ -84,10 +86,14 @@ export class ProfileManager {
         durationLabel: t.durationLabel || '0:00',
         size:          t.size   || 0,
         type:          t.type   || 'audio/*',
-        albumArt:      t.albumArt || null,   // Data URL (작은 커버아트)
         hasHandle,
       });
     }
+
+    // 큐 목록을 플레이리스트 인덱스 배열로 저장
+    const queueIndices = Array.isArray(queue)
+      ? queue.map(qt => trackIdToIdx.get(qt.id)).filter(idx => idx !== undefined)
+      : playlist.map(p => p.idx);
 
     const profile = {
       id,
@@ -100,6 +106,7 @@ export class ProfileManager {
       cueDeviceId,
       trackCount: playlist.length,
       playlist,
+      queueIndices,
     };
 
     const list = this.getProfiles();

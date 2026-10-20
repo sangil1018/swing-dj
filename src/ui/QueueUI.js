@@ -63,7 +63,10 @@ export class QueueUI {
     this.container.innerHTML = `
       <div class="panel-header">
         <span class="panel-title">📋 큐</span>
-        <button class="btn-text" id="q-clear-btn">전체 삭제</button>
+        <div class="panel-header-actions">
+          <button class="btn-text" id="q-reset-history-btn" title="재생 완료 이력을 초기화하여 다시 추가할 수 있게 합니다">이력 초기화</button>
+          <button class="btn-text" id="q-clear-btn">전체 삭제</button>
+        </div>
       </div>
 
       <!-- 큐 드롭 영역 + 리스트 -->
@@ -101,7 +104,10 @@ export class QueueUI {
     this._cueDurEl   = this.container.querySelector('#cue-dur');
     this._cueFillEl  = this.container.querySelector('#cue-fill');
 
-    // 전체 삭제
+    // 이력 초기화 및 전체 삭제
+    this.container.querySelector('#q-reset-history-btn')?.addEventListener('click', () => {
+      this.onResetHistory?.();
+    });
     this.container.querySelector('#q-clear-btn').addEventListener('click', () => {
       this.qm.clear();
     });
@@ -114,6 +120,11 @@ export class QueueUI {
     // CUE 재생/정지
     this._cuePlayBtn.addEventListener('click', () => this._cueToggle());
     this._cueStopBtn.addEventListener('click', () => this._cueStop());
+    this.cuePlayer.onEnded = () => {
+      this._cueFillEl.style.width = '0%';
+      this._cueTimeEl.textContent = '0:00';
+      this._updateCueBtn();
+    };
 
     // 큐 리스트에 외부 드롭(플레이리스트에서)
     this._listEl.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
@@ -126,7 +137,6 @@ export class QueueUI {
     });
 
     this._renderList();
-    this._startCueTick();
   }
 
   /* ── 큐 리스트 렌더링 ───────────────────────────────── */
@@ -220,6 +230,9 @@ export class QueueUI {
         if (e.dataTransfer.types.includes('q-internal')) {
           e.dataTransfer.dropEffect = 'move';
           el.classList.add('drag-target');
+        } else if (e.dataTransfer.types.includes('text/plain')) {
+          e.dataTransfer.dropEffect = 'copy';
+          el.classList.add('drag-target');
         }
       });
       el.addEventListener('dragleave', () => el.classList.remove('drag-target'));
@@ -227,10 +240,19 @@ export class QueueUI {
         e.preventDefault();
         el.classList.remove('drag-target');
         const toIdx = parseInt(el.dataset.idx);
-        if (!isNaN(this._dragSrcIdx) && this._dragSrcIdx !== toIdx && e.dataTransfer.types.includes('q-internal')) {
-          this.qm.reorder(this._dragSrcIdx, toIdx);
+        if (e.dataTransfer.types.includes('q-internal')) {
+          e.stopPropagation();
+          if (!isNaN(this._dragSrcIdx) && this._dragSrcIdx !== toIdx) {
+            this.qm.reorder(this._dragSrcIdx, toIdx);
+          }
+          this._dragSrcIdx = null;
+        } else {
+          const trackId = parseInt(e.dataTransfer.getData('text/plain'));
+          if (!isNaN(trackId) && this.onTrackDropFromPlaylist) {
+            e.stopPropagation();
+            this.onTrackDropFromPlaylist(trackId, toIdx);
+          }
         }
-        this._dragSrcIdx = null;
       });
     });
 
@@ -300,17 +322,26 @@ export class QueueUI {
 
   _updateCueBtn() {
     this._cuePlayBtn.textContent = this.cuePlayer.isPlaying ? '⏸ 일시정지' : '▶ 미리듣기';
+    if (this.cuePlayer.isPlaying) {
+      this._startCueTick();
+    } else if (this._rafId) {
+      cancelAnimationFrame(this._rafId);
+      this._rafId = null;
+    }
   }
 
   /* ── CUE 진행 바 업데이트 (rAF) ─────────────────────── */
   _startCueTick() {
+    if (this._rafId) return;
     const tick = () => {
-      if (this.cuePlayer.isPlaying) {
-        const pct = this.cuePlayer.progress * 100;
-        this._cueFillEl.style.width = `${pct.toFixed(1)}%`;
-        this._cueTimeEl.textContent = formatTime(this.cuePlayer.currentTime);
-        this._cueDurEl.textContent  = formatTime(this.cuePlayer.duration);
+      if (!this.cuePlayer.isPlaying) {
+        this._rafId = null;
+        return;
       }
+      const pct = this.cuePlayer.progress * 100;
+      this._cueFillEl.style.width = `${pct.toFixed(1)}%`;
+      this._cueTimeEl.textContent = formatTime(this.cuePlayer.currentTime);
+      this._cueDurEl.textContent  = formatTime(this.cuePlayer.duration);
       this._rafId = requestAnimationFrame(tick);
     };
     this._rafId = requestAnimationFrame(tick);
@@ -331,5 +362,5 @@ export class QueueUI {
 }
 
 function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
