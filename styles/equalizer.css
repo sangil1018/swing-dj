@@ -1,21 +1,20 @@
 /* ═══════════════════════════════════════════════════════
-   equalizer.css — 5밴드 EQ 패널 (눈금자 + 1.5배 높이 + 커스텀 프리셋)
+   equalizer.css — 5밴드 EQ 패널 (눈금자 + Bit-Perfect + 커스텀 프리셋)
    ═══════════════════════════════════════════════════════ */
 
-/* ── 컨테이너 ────────────────────────────────────────── */
 #eq-container {
   width: 100%;
-  max-width: 520px;
+  max-width: 640px;
 }
 
 .eq-wrap {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  padding: var(--sp-md) var(--sp-lg) var(--sp-md);
+  padding: 10px 16px;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-sm);
+  gap: 8px;
   overflow: hidden;
 }
 
@@ -28,16 +27,90 @@
   gap: var(--sp-sm);
 }
 
-.eq-title {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 1.2px;
+.eq-title-group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   flex-shrink: 0;
 }
 
-/* 빌트인 프리셋 버튼들 */
+.eq-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.eq-mode-badge {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+}
+
+.eq-mode-badge.bit-perfect {
+  background: rgba(62, 207, 133, 0.14);
+  border: 1px solid rgba(62, 207, 133, 0.30);
+  color: var(--accent-green);
+}
+
+.eq-mode-badge.active {
+  background: var(--gold-subtle);
+  border: 1px solid var(--border-gold);
+  color: var(--gold);
+}
+
+.eq-sr-badge {
+  font-size: 9.5px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.eq-sr-badge.pure {
+  color: var(--accent-green);
+  border-color: rgba(62, 207, 133, 0.25);
+}
+
+.eq-dsp-btn {
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  padding: 2px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease);
+  white-space: nowrap;
+}
+.eq-dsp-btn:hover {
+  color: var(--gold);
+  border-color: var(--border-gold);
+  background: var(--gold-subtle);
+}
+.eq-dsp-btn.active {
+  background: var(--gold-subtle);
+  border-color: var(--gold);
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.loudness-badge.ag-active {
+  color: var(--accent-green);
+  border-color: rgba(62, 207, 133, 0.35);
+  background: rgba(62, 207, 133, 0.12);
+}
+
+/* 프리셋 버튼들 */
 .eq-presets {
   display: flex;
   gap: 4px;
@@ -47,15 +120,18 @@
 .eq-preset-btn {
   background: var(--bg-hover);
   border: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 500;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
   font-family: var(--font-ui);
-  padding: 3px 8px;
-  border-radius: 4px;
+  padding: 3px 9px;
+  border-radius: 5px;
   cursor: pointer;
   transition: all var(--dur-fast) var(--ease);
-  line-height: 1.5;
+  line-height: 1.4;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .eq-preset-btn:hover {
@@ -71,6 +147,21 @@
   font-weight: 600;
 }
 
+.eq-custom-del {
+  font-size: 11px;
+  opacity: 0.6;
+  padding: 0 2px;
+}
+.eq-custom-del:hover {
+  opacity: 1;
+  color: var(--accent-red);
+}
+
+.eq-save-custom-btn {
+  border-style: dashed;
+  color: var(--text-muted);
+}
+
 /* ── 슬라이더 본체 (눈금자 + 5밴드) ─────────────────── */
 .eq-body {
   display: flex;
@@ -83,9 +174,8 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  /* 상단(eq-value 영역) + 슬라이더 래퍼 높이에 맞춤 */
-  padding-top: 16px;   /* .eq-value 높이 보정 */
-  padding-bottom: 16px; /* .eq-label 높이 보정 */
+  padding-top: 16px;
+  padding-bottom: 16px;
   flex-shrink: 0;
   width: 28px;
 }
@@ -103,7 +193,6 @@
   gap: 4px;
 }
 
-/* 눈금선 */
 .eq-scale-mark::after {
   content: '';
   display: inline-block;
@@ -113,7 +202,6 @@
   flex-shrink: 0;
 }
 
-/* 0dB 중앙선 강조 */
 .eq-scale-mark.zero {
   color: var(--border-gold);
 }
@@ -135,7 +223,6 @@
   overflow: hidden;
 }
 
-/* 각 밴드 컬럼 */
 .eq-band {
   display: flex;
   flex-direction: column;
@@ -145,42 +232,43 @@
   overflow: hidden;
 }
 
-/* dB 수치 */
 .eq-value {
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 600;
   font-family: var(--font-mono);
   color: var(--gold);
-  min-height: 14px;
-  line-height: 1.4;
+  min-height: 15px;
+  line-height: 1.3;
   text-align: center;
+  cursor: pointer;
   transition: color var(--dur-fast) var(--ease);
 }
 
 .eq-band.band-neg  .eq-value { color: var(--accent-blue); }
-.eq-band.band-zero .eq-value { color: var(--text-muted); }
+.eq-band.band-zero .eq-value { color: var(--text-secondary); }
 
-/* ── 슬라이더 래퍼 (140px) ──────────────────────────── */
+/* ── 슬라이더 래퍼 (104px) ──────────────────────────── */
 .eq-slider-wrap {
   position: relative;
   width: 100%;
-  height: 140px;
+  height: 104px;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 640px) {
   .eq-slider-wrap {
-    height: 100px;
+    height: 88px;
   }
 
   .eq-slider {
-    width: 100px;
+    width: 88px !important;
   }
 
   .eq-wrap {
-    padding: var(--sp-sm) var(--sp-md);
+    padding: 8px 12px;
   }
 
   .eq-body {
@@ -188,7 +276,6 @@
   }
 }
 
-/* ±6dB 보조선 */
 .eq-slider-wrap::before,
 .eq-slider-wrap::after {
   content: '';
@@ -201,10 +288,9 @@
   pointer-events: none;
 }
 
-.eq-slider-wrap::before { top: 25%; }   /* +6dB */
-.eq-slider-wrap::after  { top: 75%; }   /* -6dB */
+.eq-slider-wrap::before { top: 25%; }
+.eq-slider-wrap::after  { top: 75%; }
 
-/* 0dB 중앙 기준선 */
 .eq-centerline {
   position: absolute;
   left: 15%;
@@ -217,26 +303,22 @@
   border-radius: 1px;
 }
 
-/* ── 세로 슬라이더 (rotate -90deg, absolute 배치) ─── */
+/* ── 세로 슬라이더 ──────────────────────────────────── */
 .eq-slider {
   -webkit-appearance: none;
   appearance: none;
   position: absolute;
-  /* width: 회전 전 너비 = 회전 후 세로 길이 (래퍼 높이와 동일) */
-  width: 140px;
-  /* height: 회전 전 높이 = 회전 후 가로 길이 (래퍼 너비, 즉 프레임의 1/5에 해당) */
+  width: 104px;
   height: 100%;
   background: transparent;
   outline: none;
   cursor: pointer;
-  /* 중앙 배치 후 회전 */
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%) rotate(-90deg);
   transform-origin: center center;
 }
 
-/* ── Track (Chrome/Safari) ──────────────────────────── */
 .eq-slider::-webkit-slider-runnable-track {
   height: 4px;
   background: linear-gradient(to right,
@@ -247,7 +329,6 @@
   border-radius: 2px;
 }
 
-/* ── Thumb (Chrome/Safari) ──────────────────────────── */
 .eq-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 18px;
@@ -261,15 +342,14 @@
 }
 
 .eq-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.3);
+  transform: scale(1.25);
   box-shadow: 0 0 0 2px var(--gold), 0 0 14px var(--gold-glow);
 }
 
 .eq-slider::-webkit-slider-thumb:active {
-  transform: scale(1.12);
+  transform: scale(1.1);
 }
 
-/* ── Track / Thumb (Firefox) ────────────────────────── */
 .eq-slider::-moz-range-track {
   height: 4px;
   background: var(--bg-active);
@@ -285,15 +365,13 @@
   cursor: pointer;
 }
 
-/* 밴드 주파수 라벨 */
 .eq-label {
-  font-size: 9px;
-  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
   text-align: center;
   white-space: nowrap;
   font-family: var(--font-mono);
-  letter-spacing: 0.2px;
-  min-height: 12px;
+  letter-spacing: 0.1px;
+  min-height: 14px;
 }
-
-

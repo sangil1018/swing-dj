@@ -16,6 +16,7 @@ const DB_NAME    = 'swingdj_db';
 const DB_VERSION = 1;
 const STORE      = 'file_handles';
 const LS_KEY     = 'swingdj_profiles';
+const PL_LS_KEY  = 'swingdj_saved_playlists';
 
 export class ProfileManager {
   constructor() {
@@ -171,6 +172,105 @@ export class ProfileManager {
     for (let i = 0; i < n; i++) {
       await this._dbDelete(`${profile.id}_${i}`);
     }
+  }
+
+  // ── 개별 플레이리스트 보관함 (저장 / 불러오기 / 삭제) ──────────
+  getSavedPlaylists() {
+    try {
+      return JSON.parse(localStorage.getItem(PL_LS_KEY) || '[]');
+    } catch {
+      return [];
+    }
+  }
+
+  _setSavedPlaylists(list) {
+    localStorage.setItem(PL_LS_KEY, JSON.stringify(list));
+  }
+
+  async savePlaylist(name, tracks = []) {
+    const id = `pl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const items = [];
+
+    for (let i = 0; i < tracks.length; i++) {
+      const t = tracks[i];
+      const handle = t.fileHandle || t.file?._handle || null;
+      const hasHandle = Boolean(handle);
+      if (hasHandle) {
+        await this._dbPut(`${id}_${i}`, handle);
+      }
+      items.push({
+        idx:           i,
+        name:          t.name,
+        artist:        t.artist || '',
+        album:         t.album  || '',
+        bpm:           t.bpm    || null,
+        duration:      t.duration || 0,
+        durationLabel: t.durationLabel || '0:00',
+        format:        t.format || '',
+        fileName:      t.file?.name || t.fileName || '',
+        size:          t.file?.size || t.size || 0,
+        hasHandle,
+      });
+    }
+
+    const record = {
+      id,
+      name: String(name || '새 플레이리스트').trim(),
+      createdAt: new Date().toISOString(),
+      trackCount: items.length,
+      tracks: items,
+    };
+
+    const list = this.getSavedPlaylists();
+    const existingIdx = list.findIndex((p) => p.name === record.name);
+    if (existingIdx >= 0) {
+      await this._cleanHandles(list[existingIdx]);
+      list[existingIdx] = record;
+    } else {
+      list.push(record);
+    }
+    this._setSavedPlaylists(list);
+    return record;
+  }
+
+  async loadPlaylist(playlistId) {
+    const list = this.getSavedPlaylists();
+    const record = list.find((p) => p.id === playlistId);
+    if (!record) throw new Error('저장된 플레이리스트를 찾을 수 없습니다');
+
+    const restored = [];
+    for (const meta of record.tracks || []) {
+      let fileHandle = null;
+      let file = null;
+
+      if (meta.hasHandle) {
+        fileHandle = await this._dbGet(`${playlistId}_${meta.idx}`);
+        if (fileHandle) {
+          const perm = await fileHandle.requestPermission?.({ mode: 'read' }).catch(() => 'denied');
+          if (perm === 'granted' || !fileHandle.requestPermission) {
+            file = await fileHandle.getFile().catch(() => null);
+            if (file) file._handle = fileHandle;
+          }
+        }
+      }
+
+      restored.push({ ...meta, fileHandle, file });
+    }
+
+    return { ...record, tracks: restored };
+  }
+
+  async deletePlaylist(playlistId) {
+    let list = this.getSavedPlaylists();
+    const record = list.find((p) => p.id === playlistId);
+    if (record) {
+      const n = record.trackCount || (record.tracks?.length ?? 0);
+      for (let i = 0; i < n; i++) {
+        await this._dbDelete(`${record.id}_${i}`);
+      }
+    }
+    list = list.filter((p) => p.id !== playlistId);
+    this._setSavedPlaylists(list);
   }
 
   // ── IndexedDB CRUD ────────────────────────────────────

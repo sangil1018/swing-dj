@@ -1,18 +1,29 @@
 #!/bin/bash
+cd "$(dirname "$0")" || exit 1
+
 echo "==================================================="
 echo "  🎷 SwingDJ 로컬 서버 시작"
 echo "==================================================="
 echo ""
 
-# 브라우저 자동 실행 함수
 open_browser() {
     echo "브라우저에서 http://localhost:8080 을 엽니다..."
-    if command -v xdg-open &> /dev/null; then
-        xdg-open http://localhost:8080 &
-    elif command -v open &> /dev/null; then
-        open http://localhost:8080 &
-    fi
+    (
+      sleep 0.6
+      if command -v xdg-open &> /dev/null; then
+          xdg-open http://localhost:8080 &> /dev/null
+      elif command -v open &> /dev/null; then
+          open http://localhost:8080 &> /dev/null
+      fi
+    ) &
 }
+
+# 이미 실행 중인지 확인
+if command -v lsof &> /dev/null && [ -n "$(lsof -tiTCP:8080 -sTCP:LISTEN 2>/dev/null)" ]; then
+    echo "이미 SwingDJ 서버가 8080 포트에서 실행 중입니다."
+    open_browser
+    exit 0
+fi
 
 # Python3 확인
 if command -v python3 &> /dev/null; then

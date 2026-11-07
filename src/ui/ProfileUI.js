@@ -1,18 +1,13 @@
 /**
  * ProfileUI.js — 앱 전체 프로파일 저장/불러오기 UI
  *
- * 헤더의 "📁 프로파일" 버튼 → 슬라이드인 사이드 패널
+ * 헤더의 "💾 프로파일" 버튼 → 슬라이드인 사이드 패널
  *  - 저장: 이름 입력 → 현재 앱 상태 전체 저장
  *  - 불러오기: 프로파일 선택 → EQ/볼륨/장치 적용 + 플레이리스트 복원
  *  - 삭제: 프로파일 카드에서 개별 삭제
  */
 
 export class ProfileUI {
-  /**
-   * @param {ProfileManager} profileManager
-   * @param {Function}       getAppState   () => { eqBands, mainVolume, cueVolume, mainDeviceId, cueDeviceId, tracks }
-   * @param {Function}       applyProfile  (profileData) => void — EQ/볼륨/장치/플레이리스트 적용
-   */
   constructor(profileManager, getAppState, applyProfile) {
     this.pm           = profileManager;
     this.getAppState  = getAppState;
@@ -47,7 +42,7 @@ export class ProfileUI {
     this._panel.innerHTML = `
       <div class="profile-panel-header">
         <span class="profile-panel-title">💾 프로파일</span>
-        <button class="profile-close-btn" id="profile-close-btn" title="닫기">✕</button>
+        <button class="profile-close-btn" id="profile-close-btn" title="닫기 (Esc)">✕</button>
       </div>
 
       <div class="profile-panel-body">
@@ -56,14 +51,14 @@ export class ProfileUI {
         <section class="profile-save-section">
           <h3 class="profile-section-title">현재 설정 저장</h3>
           <p class="profile-section-desc">
-            EQ · 볼륨 · 출력 장치 · 플레이리스트를<br/>하나의 프로파일로 저장합니다.
+            EQ · 볼륨 · 출력 장치 · 플레이리스트 · 큐 순서를<br/>하나의 프로파일로 저장합니다.
           </p>
           <div class="profile-save-row">
             <input
               type="text"
               id="profile-name-input"
               class="profile-name-input"
-              placeholder="프로파일 이름 (예: 공연장 A)"
+              placeholder="프로파일 이름 (예: 금요 소셜 1부)"
               maxlength="30"
             />
             <button id="profile-save-btn" class="profile-save-btn">
@@ -90,6 +85,14 @@ export class ProfileUI {
     this._panel.querySelector('#profile-save-btn').addEventListener('click', () => this._save());
     this._panel.querySelector('#profile-name-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this._save();
+    });
+
+    // Esc 키로 닫기
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this._open) {
+        e.preventDefault();
+        this.close();
+      }
     });
 
     this._renderList();
@@ -237,5 +240,5 @@ export class ProfileUI {
 }
 
 function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

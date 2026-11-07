@@ -3,6 +3,28 @@
  */
 const PREFIX = 'swingdj_';
 
+const DEFAULT_SETTINGS = {
+  mainVolume: 0.85,
+  cueVolume: 0.85,
+  mainDeviceId: 'default',
+  cueDeviceId: 'default',
+  eqBands: [0, 0, 0, 0, 0],
+  showAlbumArt: true,
+  showEQ: true,
+  showVisualizer: true,
+  showRemainingTime: true,
+  autoStopAfterCurrent: false,
+  theme: 'gold',
+  compMode: false,
+  compDurationSec: 100,
+  compFadeSec: 5,
+  metronomeBpm: 140,
+  metronomeMode: 'straight',
+  metronomeOutput: 'cue',
+  autoGain: false,
+  monoOutput: false,
+};
+
 export const Storage = {
   set(key, value) {
     try {
@@ -25,10 +47,16 @@ export const Storage = {
     localStorage.removeItem(PREFIX + key);
   },
 
-  // EQ 프리셋 저장
+  // EQ 프리셋 저장/삭제
   saveEQPreset(name, bands) {
     const presets = this.get('eq_presets', {});
-    presets[name] = bands;
+    presets[name] = [...bands];
+    this.set('eq_presets', presets);
+  },
+
+  deleteEQPreset(name) {
+    const presets = this.get('eq_presets', {});
+    delete presets[name];
     this.set('eq_presets', presets);
   },
 
@@ -38,18 +66,11 @@ export const Storage = {
 
   // 앱 설정
   saveSettings(settings) {
-    this.set('settings', settings);
+    this.set('settings', { ...DEFAULT_SETTINGS, ...settings });
   },
 
   getSettings() {
-    return this.get('settings', {
-      mainVolume: 0.85,
-      cueVolume: 0.85,
-      mainDeviceId: 'default',
-      cueDeviceId: 'default',
-      eqBands: [0, 0, 0, 0, 0],
-      showAlbumArt: true,
-      showVisualizer: true,
-    });
+    const saved = this.get('settings', null);
+    return saved ? { ...DEFAULT_SETTINGS, ...saved } : { ...DEFAULT_SETTINGS };
   },
 };

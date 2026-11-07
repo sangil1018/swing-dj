@@ -15,12 +15,34 @@ export class QueueManager {
   enqueue(track) {
     this._queue.push(track);
     this._notify();
+    return this._queue.length - 1;
+  }
+
+  /* 다중 트랙 일괄 추가 (리렌더 1회로 최적화) */
+  enqueueMany(tracks) {
+    if (!tracks?.length) return 0;
+    this._queue.push(...tracks);
+    this._notify();
+    return tracks.length;
   }
 
   /* 특정 위치에 삽입 */
   insertAt(index, track) {
-    this._queue.splice(index, 0, track);
+    const safeIdx = Math.max(0, Math.min(index, this._queue.length));
+    this._queue.splice(safeIdx, 0, track);
     this._notify();
+    return safeIdx;
+  }
+
+  /* 현재 재생 중인 곡 바로 다음 순서에 삽입 */
+  insertNext(track, currentPlayingId = null) {
+    if (currentPlayingId != null) {
+      const curIdx = this._queue.findIndex((t) => t.id === currentPlayingId);
+      if (curIdx !== -1) {
+        return this.insertAt(curIdx + 1, track);
+      }
+    }
+    return this.insertAt(0, track);
   }
 
   /* 선두(다음 재생) 트랙 꺼내기 */
@@ -42,7 +64,9 @@ export class QueueManager {
     if (idx !== -1) {
       this._queue.splice(idx, 1);
       this._notify();
+      return idx;
     }
+    return -1;
   }
 
   /* 드래그앤드롭 순서 변경 */

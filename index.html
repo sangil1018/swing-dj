@@ -8,6 +8,13 @@
   <meta http-equiv="Expires" content="0">
   <title>SwingDJ — 스윙 재즈 DJ 플레이어</title>
   <meta name="description" content="스윙 재즈 댄스를 위한 심플 DJ 플레이어. 플레이리스트, 큐 관리, 분리 출력, 5밴드 EQ 지원." />
+  <meta name="theme-color" content="#0d0e12" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="manifest" href="manifest.webmanifest" />
 
   <!-- 스타일 -->
   <link rel="stylesheet" href="styles/main.css" />
@@ -62,6 +69,8 @@
   <main id="player-panel" aria-label="플레이어">
     <!-- 플레이어 컨트롤 영역 -->
     <div id="player-inner"></div>
+    <!-- 스윙 DJ 도구 (컴핏모드 타이머 + 메트로놈) -->
+    <div id="dj-tools-container"></div>
     <!-- 5밴드 EQ -->
     <div id="eq-container"></div>
   </main>
@@ -84,6 +93,13 @@
 
 <!-- ES Module 진입점 -->
 <script type="module" src="src/main.js"></script>
+<script>
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
+</script>
 
 </body>
 </html>
