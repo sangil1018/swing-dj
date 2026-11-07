@@ -102,13 +102,13 @@ export class PlayerUI {
 
           <div class="player-options">
             <label class="opt-label" title="앨범 아트 표시">
-              <input type="checkbox" id="opt-album-art" checked> 💿 아트
+              <input type="checkbox" id="opt-album-art" checked> <span class="opt-emoji">💿 </span>아트
             </label>
             <label class="opt-label" title="이퀄라이저 밴드 표시">
-              <input type="checkbox" id="opt-eq" checked> 🎚️ EQ
+              <input type="checkbox" id="opt-eq" checked> <span class="opt-emoji">🎚️ </span>EQ
             </label>
             <label class="opt-label" title="스펙트럼 비주얼라이저 표시 (해제 시 배터리 절약)">
-              <input type="checkbox" id="opt-visualizer" checked> 📊 파형
+              <input type="checkbox" id="opt-visualizer" checked> <span class="opt-emoji">📊 </span>파형
             </label>
           </div>
         </div>

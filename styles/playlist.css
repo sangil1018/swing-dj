@@ -709,6 +709,45 @@
   }
 }
 
+@media (max-width: 640px) {
+  .track-item, .q-item {
+    padding: 7px 10px;
+    gap: 6px;
+  }
+
+  .track-thumb,
+  .track-art,
+  .track-art-placeholder {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+
+  .track-name, .q-name {
+    font-size: 12.5px;
+  }
+
+  .track-artist, .q-artist {
+    font-size: 11px;
+  }
+
+  .track-meta {
+    min-width: 46px;
+  }
+
+  .btn-cue, .btn-queue, .btn-queue-next, .btn-pl-del {
+    padding: 3px 6px;
+    font-size: 10.5px;
+    min-height: 25px;
+  }
+
+  .q-cue-btn, .q-up-btn, .q-dn-btn, .q-del-btn {
+    width: 26px;
+    height: 26px;
+    font-size: 11px;
+  }
+}
+
 .panel-header-actions {
   display: flex;
   align-items: center;
@@ -1148,5 +1187,65 @@
   .cue-jump-btn {
     height: 33px;
     font-size: 12px;
+  }
+}
+
+@media (min-width: 2600px) and (min-height: 1300px) {
+  .pl-tab-item {
+    height: 30px;
+    font-size: 12.5px;
+    padding: 0 11px;
+    max-width: 190px;
+  }
+
+  .pl-tab-ctrl-btn {
+    height: 30px;
+    font-size: 12px;
+    padding: 0 9px;
+  }
+
+  .pl-search,
+  .pl-sort {
+    height: 34px;
+    font-size: 13px;
+  }
+
+  .bpm-tier-chip {
+    font-size: 12px;
+    padding: 5px 4px;
+  }
+
+  .track-item,
+  .q-item {
+    padding: 10px 20px;
+    gap: 13px;
+  }
+
+  .track-thumb,
+  .track-art,
+  .track-art-placeholder {
+    width: 44px;
+    height: 44px;
+  }
+
+  .track-name,
+  .q-name {
+    font-size: 14.5px;
+  }
+
+  .track-artist,
+  .q-artist {
+    font-size: 12.5px;
+  }
+
+  .cue-preview {
+    padding: 18px 20px;
+    gap: 12px;
+  }
+
+  .cue-btn,
+  .cue-jump-btn {
+    height: 36px;
+    font-size: 13px;
   }
 }

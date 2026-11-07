@@ -540,6 +540,7 @@ button { cursor: pointer; border: none; font-family: var(--font-ui); }
   padding: 2px 7px;
   letter-spacing: 0.4px;
   line-height: 1.25;
+  white-space: nowrap;
 }
 
 /* ── 상태 바 ─────────────────────────────────────────── */
@@ -1111,35 +1112,40 @@ kbd {
   }
 
   #app-header {
-    padding: 6px 10px;
-    min-height: 46px;
-    gap: 6px;
+    padding: 5px 8px;
+    min-height: 42px;
+    gap: 5px;
     flex-wrap: wrap;
   }
 
   .app-logo {
-    font-size: 15px;
-    gap: 5px;
+    font-size: 14.5px;
+    gap: 4px;
   }
 
   .logo-icon {
-    font-size: 17px;
+    font-size: 16px;
   }
 
   .header-mobile-toggle,
   .theme-header-btn,
   .profile-header-btn {
-    height: 28px;
-    padding: 0 7px;
-    font-size: 11px;
+    height: 27px;
+    padding: 0 6px;
+    font-size: 10.5px;
     border-radius: var(--r-sm);
-    gap: 4px;
+    gap: 3px;
+  }
+
+  .theme-btn-dot {
+    width: 8px;
+    height: 8px;
   }
 
   .help-header-btn {
-    width: 28px;
-    height: 28px;
-    font-size: 12px;
+    width: 27px;
+    height: 27px;
+    font-size: 11.5px;
     border-radius: var(--r-sm);
   }
 
@@ -1150,8 +1156,8 @@ kbd {
   }
 
   .m-tab-btn {
-    padding: 9px 0;
-    font-size: 12.5px;
+    padding: 8px 0;
+    font-size: 12px;
   }
 
   #playlist-panel, #queue-panel {
@@ -1168,8 +1174,9 @@ kbd {
   #app.show-queue #queue-panel { display: flex !important; }
 
   #player-panel {
-    padding: 8px 10px;
-    max-height: 48vh;
+    padding: 6px 10px;
+    max-height: 44vh;
+    justify-content: flex-start;
   }
 
   .help-grid {
@@ -1177,12 +1184,79 @@ kbd {
   }
 }
 
+/* 스마트폰 가로 모드 (Galaxy 2340×1080 → 780×360, 3120×1440 → 832×384 등)
+   좌측: 플레이어/DJ 도구(독립 스크롤), 우측: 플레이리스트/큐 탭 전환 2단 분할 */
+@media (max-width: 1024px) and (max-height: 520px) and (orientation: landscape) {
+  html, body {
+    overflow: hidden;
+  }
+
+  #app {
+    display: grid;
+    grid-template-columns: minmax(310px, 46%) 1fr;
+    grid-template-rows: 42px 34px 1fr;
+    grid-template-areas:
+      "header header"
+      "player tabs"
+      "player panel";
+    height: 100vh;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  #app-header {
+    padding: 4px 12px;
+    min-height: 42px;
+    gap: 8px;
+  }
+
+  #player-panel {
+    grid-area: player;
+    height: 100%;
+    max-height: none;
+    overflow-y: auto;
+    padding: 8px 10px;
+    border-right: 1px solid var(--border);
+    justify-content: flex-start;
+  }
+
+  .mobile-tabs {
+    grid-area: tabs;
+    display: flex;
+    z-index: 90;
+  }
+
+  .m-tab-btn {
+    padding: 6px 0;
+    font-size: 12px;
+  }
+
+  #playlist-panel, #queue-panel {
+    grid-area: panel !important;
+    display: none;
+    height: 100%;
+    max-height: none;
+    min-height: 0;
+    width: 100%;
+    border: none !important;
+  }
+
+  #app.show-playlist #playlist-panel { display: flex !important; }
+  #app.show-queue #queue-panel { display: flex !important; }
+}
+
 .header-mobile-toggle { display: none; }
 
-/* ── 대화면 데스크톱 (1600px 이상: FHD / WUXGA 1920×1200 / QHD) ── */
+/* ── 대화면 데스크톱 (1600px 이상: FHD / WUXGA 1920×1200 / QHD / 2340×1080 / 3120×1440) ── */
 @media (min-width: 1600px) {
   #app {
     grid-template-columns: minmax(420px, 460px) 1fr minmax(400px, 440px);
+  }
+}
+
+@media (min-width: 2000px) {
+  #app {
+    grid-template-columns: clamp(460px, 24vw, 680px) 1fr clamp(440px, 23vw, 640px);
   }
 }
 
@@ -1211,5 +1285,65 @@ kbd {
 
   #status-bar {
     font-size: 12px;
+  }
+}
+
+@media (min-width: 2600px) and (min-height: 1300px) {
+  #app {
+    grid-template-rows: 68px 1fr 36px;
+  }
+
+  .app-logo {
+    font-size: 22px;
+  }
+
+  .logo-icon {
+    font-size: 25px;
+  }
+
+  .panel-header {
+    min-height: 56px;
+    padding: 10px 20px;
+  }
+
+  .panel-title {
+    font-size: 15px;
+  }
+
+  .track-count {
+    font-size: 12.5px;
+    padding: 3px 9px;
+  }
+
+  .btn-text {
+    font-size: 13px;
+    padding: 6px 12px;
+  }
+
+  .device-label {
+    font-size: 13px;
+  }
+
+  .device-select {
+    font-size: 13px;
+    max-width: 230px;
+    padding: 6px 28px 6px 11px;
+  }
+
+  .theme-header-btn,
+  .profile-header-btn {
+    height: 36px;
+    font-size: 13px;
+    padding: 0 13px;
+  }
+
+  .help-header-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 15px;
+  }
+
+  #status-bar {
+    font-size: 13px;
   }
 }
