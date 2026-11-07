@@ -152,6 +152,7 @@ async function init() {
 
   // UI 마운트
   playerUI.getSpectrumColors = () => themeMgr.getSpectrumColors();
+  playerUI.onStateSync = () => djToolsUI._syncCompUI();
   playerUI.mount();
   djToolsUI.mount();
   playlistUI.mount();
@@ -519,6 +520,115 @@ async function init() {
       }
     });
   });
+
+  // 데크 모드 전환 (플레이 컨트롤 / 컴핏모드 / 메트로놈: 탭 + 안전 좌우 스와이프 + 전체 펼침)
+  const playerPanelEl = document.querySelector('#player-panel');
+  const deckTabs = Array.from(document.querySelectorAll('.deck-tab[data-deck-target]'));
+  const deckExpandBtn = document.querySelector('#deck-expand-btn');
+  const deckStageEl = document.querySelector('#deck-stage');
+  const DECK_ORDER = ['player', 'comp', 'metro'];
+
+  const setActiveDeck = (deckName) => {
+    if (!playerPanelEl || !DECK_ORDER.includes(deckName)) return;
+    playerPanelEl.dataset.activeDeck = deckName;
+    deckTabs.forEach((tab) => {
+      const isMatch = tab.dataset.deckTarget === deckName;
+      tab.classList.toggle('active', isMatch);
+      tab.setAttribute('aria-selected', isMatch ? 'true' : 'false');
+    });
+    if (deckName === 'player' && playerUI.showVisualizer) {
+      requestAnimationFrame(() => playerUI._drawSpectrum());
+    }
+  };
+
+  deckTabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      if (playerPanelEl?.classList.contains('deck-expanded')) {
+        playerPanelEl.classList.remove('deck-expanded');
+        deckExpandBtn?.classList.remove('active');
+        deckExpandBtn?.setAttribute('aria-pressed', 'false');
+      }
+      setActiveDeck(tab.dataset.deckTarget);
+    });
+  });
+
+  if (deckExpandBtn && playerPanelEl) {
+    deckExpandBtn.addEventListener('click', () => {
+      const expanded = playerPanelEl.classList.toggle('deck-expanded');
+      deckExpandBtn.classList.toggle('active', expanded);
+      deckExpandBtn.setAttribute('aria-pressed', expanded ? 'true' : 'false');
+      if (expanded && playerUI.showVisualizer) {
+        requestAnimationFrame(() => playerUI._drawSpectrum());
+      }
+    });
+  }
+
+  // 안전 좌우 스와이프 (슬라이더·시크바·버튼·인풋 위에서의 드래그는 무시하여 오작동 원천 차단)
+  if (deckStageEl && playerPanelEl) {
+    let swipeStartX = null;
+    let swipeStartY = null;
+    let swipeBlocked = false;
+
+    const isInteractiveTarget = (el) => {
+      if (!el || typeof el.closest !== 'function') return false;
+      return Boolean(
+        el.closest(
+          'input, select, textarea, button, label, .progress-bar, .comp-progress-bar, .vol-slider, .eq-slider'
+        )
+      );
+    };
+
+    const onSwipeStart = (clientX, clientY, target) => {
+      if (playerPanelEl.classList.contains('deck-expanded') || isInteractiveTarget(target)) {
+        swipeBlocked = true;
+        swipeStartX = null;
+        swipeStartY = null;
+        return;
+      }
+      swipeBlocked = false;
+      swipeStartX = clientX;
+      swipeStartY = clientY;
+    };
+
+    const onSwipeEnd = (clientX, clientY) => {
+      if (swipeBlocked || swipeStartX === null || swipeStartY === null) return;
+      const dx = clientX - swipeStartX;
+      const dy = clientY - swipeStartY;
+      swipeStartX = null;
+      swipeStartY = null;
+
+      if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.35) return;
+      const cur = playerPanelEl.dataset.activeDeck || 'player';
+      const idx = DECK_ORDER.indexOf(cur);
+      if (idx < 0) return;
+      const nextIdx = dx < 0
+        ? Math.min(DECK_ORDER.length - 1, idx + 1)
+        : Math.max(0, idx - 1);
+      if (nextIdx !== idx) {
+        setActiveDeck(DECK_ORDER[nextIdx]);
+      }
+    };
+
+    deckStageEl.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      onSwipeStart(e.touches[0].clientX, e.touches[0].clientY, e.target);
+    }, { passive: true });
+
+    deckStageEl.addEventListener('touchend', (e) => {
+      if (e.changedTouches.length !== 1) return;
+      onSwipeEnd(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+    }, { passive: true });
+
+    deckStageEl.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') return;
+      onSwipeStart(e.clientX, e.clientY, e.target);
+    });
+
+    deckStageEl.addEventListener('pointerup', (e) => {
+      if (e.pointerType === 'touch') return;
+      onSwipeEnd(e.clientX, e.clientY);
+    });
+  }
 
   // Player 상태 및 종료 이벤트 연결
   player.onStateChange = () => {

@@ -60,6 +60,7 @@ export class DJToolsUI {
 
             <div class="comp-header-right">
               <div class="comp-timer-readout" id="comp-timer-display" title="컴핏 남은 시간">01:40</div>
+              <button type="button" class="dj-mini-btn comp-play-btn" id="comp-play-btn" title="메인 플레이어 재생 / 일시정지 (단축키: P)">▶ 재생</button>
               <button type="button" class="dj-mini-btn" id="comp-reset-btn" title="컴핏 타이머 처음(지정 시간)으로 리셋">↺ 리셋</button>
             </div>
           </div>
@@ -160,6 +161,7 @@ export class DJToolsUI {
     this._compModeLabel  = this.container.querySelector('#comp-mode-label');
     this._compStatusBadge = this.container.querySelector('#comp-status-badge');
     this._compTimerEl    = this.container.querySelector('#comp-timer-display');
+    this._compPlayBtn    = this.container.querySelector('#comp-play-btn');
     this._compResetBtn   = this.container.querySelector('#comp-reset-btn');
     this._compElapsedEl  = this.container.querySelector('#comp-elapsed-label');
     this._compTargetEl   = this.container.querySelector('#comp-target-label');
@@ -199,6 +201,10 @@ export class DJToolsUI {
 
     this._compResetBtn.addEventListener('click', () => {
       this.resetCompTimer(true);
+    });
+
+    this._compPlayBtn?.addEventListener('click', () => {
+      document.querySelector('#btn-play')?.click();
     });
 
     const applyMinSecInputs = () => {
@@ -437,8 +443,21 @@ export class DJToolsUI {
     this._btnCompMode.classList.toggle('active', this.compMode);
     this._compModeLabel.textContent = this.compMode ? '🏆 컴핏모드 ON' : '🏆 컴핏모드 OFF';
 
-    this._compTimerEl.textContent = `${String(normMin).padStart(2, '0')}:${String(normSec).padStart(2, '0')}`;
+    const timerText = `${String(normMin).padStart(2, '0')}:${String(normSec).padStart(2, '0')}`;
+    this._compTimerEl.textContent = timerText;
     this._compTimerEl.classList.toggle('fading', this.compMode && this._compFading);
+
+    if (this._compPlayBtn) {
+      this._compPlayBtn.textContent = this.player.isPlaying ? '⏸ 일시정지' : '▶ 재생';
+      this._compPlayBtn.classList.toggle('playing', Boolean(this.player.isPlaying));
+    }
+
+    const deckCompBadge = document.querySelector('#deck-badge-comp');
+    if (deckCompBadge) {
+      deckCompBadge.textContent = timerText;
+      deckCompBadge.classList.toggle('active', this.compMode);
+      deckCompBadge.classList.toggle('fading', this.compMode && this._compFading);
+    }
 
     // 상태 배지
     if (!this.compMode) {
@@ -598,6 +617,12 @@ export class DJToolsUI {
     this._metroCard.classList.toggle('metro-active', isPlaying);
     this._metroToggleBtn.classList.toggle('active', isPlaying);
     this._metroToggleLbl.textContent = isPlaying ? '⏱️ 메트로놈 ■ 정지' : '⏱️ 메트로놈 ▶ 시작';
+
+    const deckMetroBadge = document.querySelector('#deck-badge-metro');
+    if (deckMetroBadge) {
+      deckMetroBadge.textContent = isPlaying ? `▶ ${bpm}` : `${bpm}`;
+      deckMetroBadge.classList.toggle('active', isPlaying);
+    }
 
     if (!isPlaying) {
       this._metroBeatDots.forEach((dot) => {

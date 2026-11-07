@@ -66,11 +66,32 @@
   </section>
 
   <!-- ══ 메인 플레이어 패널 ══════════════════════════════ -->
-  <main id="player-panel" aria-label="플레이어">
-    <!-- 플레이어 컨트롤 영역 -->
-    <div id="player-inner"></div>
-    <!-- 스윙 DJ 도구 (컴핏모드 타이머 + 메트로놈) -->
-    <div id="dj-tools-container"></div>
+  <main id="player-panel" aria-label="플레이어" data-active-deck="player">
+    <!-- 상단 덱 전환 탭 바 (탭 클릭 + 카드 좌우 스와이프 병행 지원) -->
+    <div id="deck-switcher" class="deck-switcher" role="tablist" aria-label="플레이어 덱 모드 전환">
+      <button type="button" class="deck-tab active" id="deck-tab-player" data-deck-target="player" role="tab" aria-selected="true" title="메인 플레이 컨트롤 (탭 클릭 또는 좌우 스와이프)">
+        <span class="deck-tab-label">▶️ 플레이 컨트롤</span>
+        <span class="deck-tab-badge" id="deck-badge-player">대기</span>
+      </button>
+      <button type="button" class="deck-tab" id="deck-tab-comp" data-deck-target="comp" role="tab" aria-selected="false" title="대회용 컴핏모드 타이머 (단축키: C / 좌우 스와이프)">
+        <span class="deck-tab-label">🏆 컴핏모드</span>
+        <span class="deck-tab-badge" id="deck-badge-comp">01:40</span>
+      </button>
+      <button type="button" class="deck-tab" id="deck-tab-metro" data-deck-target="metro" role="tab" aria-selected="false" title="내장 메트로놈 (단축키: M / 좌우 스와이프)">
+        <span class="deck-tab-label">⏱️ 메트로놈</span>
+        <span class="deck-tab-badge" id="deck-badge-metro">140</span>
+      </button>
+      <button type="button" class="deck-expand-btn" id="deck-expand-btn" aria-pressed="false" title="3개 카드 한눈에 펼쳐보기 / 탭 전환 모드 토글">⊞</button>
+    </div>
+
+    <!-- 스와이프 전환 스테이지 (플레이 컨트롤 / 컴핏모드 / 메트로놈) -->
+    <div id="deck-stage" class="deck-stage">
+      <!-- 플레이어 컨트롤 영역 -->
+      <div id="player-inner"></div>
+      <!-- 스윙 DJ 도구 (컴핏모드 타이머 + 메트로놈) -->
+      <div id="dj-tools-container"></div>
+    </div>
+
     <!-- 5밴드 EQ -->
     <div id="eq-container"></div>
   </main>

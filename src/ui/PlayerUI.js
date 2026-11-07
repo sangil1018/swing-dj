@@ -391,11 +391,21 @@ export class PlayerUI {
       this._playerMain.classList.toggle('player-playing', this.player.isPlaying);
     }
 
+    const deckBadgePlayer = document.querySelector('#deck-badge-player');
+    if (deckBadgePlayer) {
+      deckBadgePlayer.textContent = this.player.isPlaying
+        ? '재생중'
+        : (this.player.currentTrack ? '준비' : '대기');
+      deckBadgePlayer.classList.toggle('active', this.player.isPlaying);
+    }
+
     if (this._btnFade) {
       this._btnFade.disabled = !this.player.isPlaying;
       this._btnFade.classList.toggle('fading', this.player.isFading);
       this._btnFade.textContent = this.player.isFading ? '🔉 페이드 취소' : '🔉 페이드';
     }
+
+    this.onStateSync?.();
 
     if (this.player.isPlaying) {
       this._startRenderLoop();
