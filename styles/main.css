@@ -1178,3 +1178,38 @@ kbd {
 }
 
 .header-mobile-toggle { display: none; }
+
+/* ── 대화면 데스크톱 (1600px 이상: FHD / WUXGA 1920×1200 / QHD) ── */
+@media (min-width: 1600px) {
+  #app {
+    grid-template-columns: minmax(420px, 460px) 1fr minmax(400px, 440px);
+  }
+}
+
+@media (min-width: 1600px) and (min-height: 1000px) {
+  #app {
+    grid-template-rows: 60px 1fr 32px;
+  }
+
+  .app-logo {
+    font-size: 20px;
+  }
+
+  .panel-header {
+    min-height: 50px;
+    padding: 8px var(--sp-lg);
+  }
+
+  .panel-title {
+    font-size: 13.5px;
+  }
+
+  .btn-text {
+    font-size: 12px;
+    padding: 5px 10px;
+  }
+
+  #status-bar {
+    font-size: 12px;
+  }
+}

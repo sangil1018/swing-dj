@@ -1097,3 +1097,56 @@
   transition: opacity var(--dur-fast) var(--ease);
 }
 .cue-progress-bar:hover .cue-progress-thumb { opacity: 1; }
+
+/* ── 대화면 데스크톱 (1600px 이상: FHD / WUXGA 1920×1200 / QHD) ── */
+@media (min-width: 1600px) {
+  .pl-tabs-bar,
+  .playlist-toolbar,
+  .bpm-tier-bar {
+    padding: 8px var(--sp-lg);
+  }
+
+  .bpm-tier-bar {
+    gap: 4px;
+  }
+
+  .bpm-tier-chip {
+    font-size: 11px;
+    padding: 4px 3px;
+    letter-spacing: -0.1px;
+  }
+
+  .track-item,
+  .q-item {
+    padding: 8px var(--sp-lg);
+    gap: 11px;
+  }
+
+  .track-thumb,
+  .track-art,
+  .track-art-placeholder {
+    width: 40px;
+    height: 40px;
+  }
+
+  .track-name,
+  .q-name {
+    font-size: 13.5px;
+  }
+
+  .track-artist,
+  .q-artist {
+    font-size: 12px;
+  }
+
+  .cue-preview {
+    padding: 14px var(--sp-lg);
+    gap: 10px;
+  }
+
+  .cue-btn,
+  .cue-jump-btn {
+    height: 33px;
+    font-size: 12px;
+  }
+}

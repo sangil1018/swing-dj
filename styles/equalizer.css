@@ -375,3 +375,47 @@
   letter-spacing: 0.1px;
   min-height: 14px;
 }
+
+/* ── 대화면 데스크톱 (1600px 이상: FHD / WUXGA 1920×1200 / QHD) ── */
+@media (min-width: 1600px) {
+  #eq-container {
+    max-width: 780px;
+  }
+}
+
+@media (min-width: 1600px) and (min-height: 1000px) {
+  .eq-wrap {
+    padding: 15px 22px;
+    gap: 12px;
+  }
+
+  .eq-title {
+    font-size: 12px;
+  }
+
+  .eq-preset-btn {
+    font-size: 12px;
+    padding: 4px 11px;
+  }
+
+  .eq-dsp-btn {
+    font-size: 11.5px;
+    padding: 3px 9px;
+  }
+
+  .eq-slider-wrap {
+    height: 144px;
+  }
+
+  .eq-slider {
+    width: 144px;
+  }
+
+  .eq-value {
+    font-size: 12px;
+  }
+
+  .eq-label {
+    font-size: 11.5px;
+  }
+}
