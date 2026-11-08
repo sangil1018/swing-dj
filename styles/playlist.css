@@ -844,6 +844,26 @@
   font-size: 11px;
 }
 
+@media (max-width: 360px) {
+  #playlist-panel .panel-header,
+  #queue-panel .panel-header {
+    padding: 5px 8px;
+  }
+
+  .panel-title {
+    font-size: 13px;
+  }
+
+  .panel-header-actions {
+    gap: 2px;
+  }
+
+  .panel-header-actions .btn-text {
+    padding: 2.5px 4.5px;
+    font-size: 10.5px;
+  }
+}
+
 /* ── 상태 하이라이트 (재생 완료 / 메인 재생 중 / CUE 미리듣기 중 / 유실) ── */
 .track-item.played:not(.playing),
 .q-item.played:not(.playing) {

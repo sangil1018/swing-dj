@@ -2,7 +2,7 @@
  * sw.js — SwingDJ PWA Service Worker
  * 온라인 시 최신 리소스를 우선 가져오고(Network-First), 오프라인(지하 스윙 빠 등)에서는 캐시로 즉시 동작합니다.
  */
-const CACHE_NAME = 'swing-dj-v7';
+const CACHE_NAME = 'swing-dj-v8';
 const PRECACHE_URLS = [
   './',
   './index.html',
