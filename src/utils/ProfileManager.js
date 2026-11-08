@@ -17,6 +17,7 @@ const DB_VERSION = 1;
 const STORE      = 'file_handles';
 const LS_KEY     = 'swingdj_profiles';
 const PL_LS_KEY  = 'swingdj_saved_playlists';
+const WS_LS_KEY  = 'swingdj_workspace_session_v1';
 
 export class ProfileManager {
   constructor() {
@@ -204,11 +205,13 @@ export class ProfileManager {
         artist:        t.artist || '',
         album:         t.album  || '',
         bpm:           t.bpm    || null,
+        bpmManual:     Boolean(t._bpmManual),
         duration:      t.duration || 0,
         durationLabel: t.durationLabel || '0:00',
         format:        t.format || '',
         fileName:      t.file?.name || t.fileName || '',
         size:          t.file?.size || t.size || 0,
+        loudness:      t.loudness || null,
         hasHandle,
       });
     }
@@ -271,6 +274,189 @@ export class ProfileManager {
     }
     list = list.filter((p) => p.id !== playlistId);
     this._setSavedPlaylists(list);
+  }
+
+  /** 수동 수정된 BPM을 저장된 플레이리스트 보관함 및 프로파일에도 일괄 반영 */
+  updateTrackBPMInStorage(track) {
+    if (!track || !track.bpm) return;
+    const targetFile = (track.file?.name || track.fileName || '').toLowerCase();
+    const targetName = (track.name || '').toLowerCase();
+    const targetArtist = (track.artist || '').toLowerCase();
+
+    const matchesMeta = (m) => {
+      const mFile = (m.fileName || '').toLowerCase();
+      if (targetFile && mFile && targetFile === mFile) return true;
+      if (
+        targetName &&
+        (m.name || '').toLowerCase() === targetName &&
+        (!targetArtist || !(m.artist || '') || (m.artist || '').toLowerCase() === targetArtist)
+      ) {
+        return true;
+      }
+      return false;
+    };
+
+    try {
+      const savedPlaylists = this.getSavedPlaylists();
+      let plChanged = false;
+      for (const pl of savedPlaylists) {
+        for (const m of pl.tracks || []) {
+          if (matchesMeta(m)) {
+            m.bpm = track.bpm;
+            m.bpmManual = Boolean(track._bpmManual);
+            plChanged = true;
+          }
+        }
+      }
+      if (plChanged) this._setSavedPlaylists(savedPlaylists);
+
+      const profiles = this.getProfiles();
+      let profChanged = false;
+      for (const p of profiles) {
+        for (const m of p.playlist || []) {
+          if (matchesMeta(m)) {
+            m.bpm = track.bpm;
+            m.bpmManual = Boolean(track._bpmManual);
+            profChanged = true;
+          }
+        }
+      }
+      if (profChanged) this._setProfiles(profiles);
+    } catch (_) {}
+  }
+
+  // ── 워크스페이스(멀티 탭 플레이리스트) 실시간 자동 저장 & 복원 ──
+  async saveWorkspaceSession(tabs = [], activeTabId = null) {
+    try {
+      const serializedTabs = [];
+      const handleTasks = [];
+
+      for (let tIdx = 0; tIdx < tabs.length; tIdx++) {
+        const tab = tabs[tIdx];
+        const items = [];
+        for (let i = 0; i < (tab.tracks || []).length; i++) {
+          const t = tab.tracks[i];
+          const handle = t.fileHandle || t.file?._handle || null;
+          const hasHandle = Boolean(handle);
+          if (hasHandle) {
+            handleTasks.push({ key: `ws_${tIdx}_${i}`, handle });
+          }
+          items.push({
+            idx:           i,
+            name:          t.name,
+            artist:        t.artist || '',
+            album:         t.album  || '',
+            bpm:           t.bpm    || null,
+            bpmManual:     Boolean(t._bpmManual),
+            duration:      t.duration || 0,
+            durationLabel: t.durationLabel || '0:00',
+            format:        t.format || '',
+            fileName:      t.file?.name || t.fileName || '',
+            size:          t.file?.size || t.size || 0,
+            loudness:      t.loudness || null,
+            hasHandle,
+          });
+        }
+        serializedTabs.push({
+          id:     tab.id,
+          name:   tab.name,
+          tracks: items,
+        });
+      }
+
+      const payload = {
+        version:     1,
+        updatedAt:   new Date().toISOString(),
+        activeTabId: activeTabId || serializedTabs[0]?.id || null,
+        tabs:        serializedTabs,
+      };
+      // 1) localStorage에 메타데이터 즉시(동기) 기록 → 탭 닫기/새로고침 시에도 100% 보장
+      localStorage.setItem(WS_LS_KEY, JSON.stringify(payload));
+
+      // 2) IndexedDB에 FileSystemFileHandle 비동기 저장
+      for (const task of handleTasks) {
+        await this._dbPut(task.key, task.handle).catch(() => {});
+      }
+    } catch (e) {
+      console.warn('saveWorkspaceSession failed:', e);
+    }
+  }
+
+  async loadWorkspaceSession() {
+    try {
+      const raw = localStorage.getItem(WS_LS_KEY);
+      if (!raw) return null;
+      const session = JSON.parse(raw);
+      if (!session || !Array.isArray(session.tabs) || session.tabs.length === 0) return null;
+
+      // 모든 탭이 비어있는 세션이면 복원 불필요
+      const totalTracks = session.tabs.reduce((sum, tab) => sum + (tab.tracks?.length || 0), 0);
+      if (totalTracks === 0 && session.tabs.length <= 1) return null;
+
+      const restoredTabs = [];
+      for (let tIdx = 0; tIdx < session.tabs.length; tIdx++) {
+        const tab = session.tabs[tIdx];
+        const tracks = [];
+        for (const meta of tab.tracks || []) {
+          let fileHandle = null;
+          let file = null;
+          if (meta.hasHandle) {
+            fileHandle = await this._dbGet(`ws_${tIdx}_${meta.idx}`);
+            if (fileHandle) {
+              // queryPermission은 사용자 클릭 없이도 현재 권한 상태 확인 가능
+              const perm = typeof fileHandle.queryPermission === 'function'
+                ? await fileHandle.queryPermission({ mode: 'read' }).catch(() => 'prompt')
+                : 'granted';
+              if (perm === 'granted') {
+                file = await fileHandle.getFile().catch(() => null);
+                if (file) file._handle = fileHandle;
+              }
+            }
+          }
+          tracks.push({ ...meta, fileHandle, file });
+        }
+        restoredTabs.push({
+          id:     tab.id,
+          name:   tab.name,
+          tracks,
+        });
+      }
+
+      return {
+        activeTabId: session.activeTabId,
+        tabs:        restoredTabs,
+      };
+    } catch (e) {
+      console.warn('loadWorkspaceSession failed:', e);
+      return null;
+    }
+  }
+
+  /** 사용자 클릭 시 파일 핸들 읽기 권한을 요청하여 미연결 트랙들을 일괄 활성화 */
+  async reconnectTracksWithHandles(tracks = []) {
+    let connected = 0;
+    for (const t of tracks) {
+      if (t.file || !t.fileHandle) continue;
+      try {
+        const perm = typeof t.fileHandle.requestPermission === 'function'
+          ? await t.fileHandle.requestPermission({ mode: 'read' })
+          : 'granted';
+        if (perm === 'granted') {
+          const file = await t.fileHandle.getFile();
+          if (file) {
+            file._handle = t.fileHandle;
+            t.file = file;
+            t.fileName = file.name;
+            t.size = file.size;
+            t.type = file.type || t.type || 'audio/mpeg';
+            t._unavailable = false;
+            t._needsPermission = false;
+            connected++;
+          }
+        }
+      } catch (_) {}
+    }
+    return connected;
   }
 
   // ── IndexedDB CRUD ────────────────────────────────────

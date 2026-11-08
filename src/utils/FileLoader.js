@@ -2,6 +2,7 @@
  * FileLoader.js — 로컬 파일/폴더 로드 + ID3 메타데이터 및 길이 추출
  */
 import { formatDuration } from './TimeFormatter.js';
+import { Storage } from './Storage.js';
 
 function readTags(file) {
   return new Promise((resolve) => {
@@ -33,8 +34,26 @@ function extractTagBPM(tags) {
   const raw = tags.TBPM?.data ?? tags.TBPM ?? tags.bpm?.data ?? tags.bpm ?? null;
   if (raw == null) return null;
   const parsed = parseFloat(String(raw).trim());
-  if (isFinite(parsed) && parsed >= 40 && parsed <= 300) {
+  if (isFinite(parsed) && parsed >= 40 && parsed <= 350) {
     return Math.round(parsed);
+  }
+  return null;
+}
+
+/** 파일명에 표기된 BPM 추출 (예: "[168] Artist - Title", "Title (145bpm)", "Title - 180 BPM") */
+function extractFilenameBPM(nameWithoutExt) {
+  const str = String(nameWithoutExt || '');
+  // 1) 명시적 bpm 단위 표기: "168bpm", "168 bpm"
+  const explicitMatch = str.match(/(?:^|[\s([_-])(\d{2,3})\s*bpm(?:$|[\s)\]._-])/i);
+  if (explicitMatch) {
+    const v = parseInt(explicitMatch[1], 10);
+    if (v >= 55 && v <= 340) return v;
+  }
+  // 2) 대괄호/소괄호 단독 3자리 템포 표기 (연도 19xx/20xx 제외): "[168]", "(145)"
+  const bracketMatches = str.matchAll(/[[(]\s*(\d{2,3})\s*[\])]/g);
+  for (const m of bracketMatches) {
+    const v = parseInt(m[1], 10);
+    if (v >= 65 && v <= 330) return v;
   }
   return null;
 }
@@ -107,23 +126,31 @@ export async function loadSingleFile(file) {
     // 파일 이름에서 기본 정보 추출
     const nameWithoutExt = file.name.replace(/\.[^.]+$/, '');
     const [artistGuess, titleGuess] = parseFilename(nameWithoutExt);
+    const filenameBpm = extractFilenameBPM(nameWithoutExt);
+    const initialBpm = tagBpm || filenameBpm || null;
 
-    return {
+    const track = {
       id: ++_trackIdCounter,
       file,
-      fileHandle: file._handle || null,   // FileSystemFileHandle (프로파일 저장용)
+      fileHandle: file._handle || null,   // FileSystemFileHandle (프로파일/세션 저장용)
+      fileName: file.name,
       name: tags.title || titleGuess || nameWithoutExt,
       artist: tags.artist || artistGuess || 'Unknown Artist',
       album: tags.album || '',
       albumArt,
       duration: probedDuration,
       durationLabel: probedDuration ? formatDuration(probedDuration) : '--:--',
-      bpm: tagBpm,
-      _bpmChecked: Boolean(tagBpm),
+      bpm: initialBpm,
+      _bpmChecked: Boolean(initialBpm),
+      _bpmManual: false,
       format: extractFormatLabel(file),
       size: file.size,
       type: file.type || 'audio/mpeg',
     };
+
+    // 이전에 사용자가 수정했거나 분석해 둔 영구 캐시 메타데이터(BPM 등) 즉시 복원
+    Storage.applyCachedMetaToTrack(track);
+    return track;
   } catch (e) {
     console.error('loadSingleFile error:', e);
     return null;

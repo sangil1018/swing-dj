@@ -72,16 +72,67 @@ const eqPanel = new EQPanel(
 
 const deviceSelector = new DeviceSelector(engine);
 
-const bpmPopover = new BPMPopover((track, newBpm) => {
-  track.bpm = newBpm;
-  track._bpmChecked = true;
-  playlistUI.updateTrackMeta(track);
-  queueUI.updateTrackMeta(track);
-  if (player.currentTrack?.id === track.id) {
-    playerUI.updateBPM(track);
+const bpmPopover = new BPMPopover(
+  (track, newBpm, isManual = true) => {
+    track.bpm = newBpm;
+    track._bpmChecked = true;
+    track._bpmManual = Boolean(isManual);
+
+    // 1) 영구 메타데이터 DB에 수동 BPM 고정 저장 (다음번 파일 재로드 시에도 유지)
+    Storage.saveTrackMeta(track, { bpmManual: Boolean(isManual) });
+
+    // 2) 모든 플레이리스트 탭 및 큐에 있는 동일 곡 BPM 일괄 동기화
+    const synced = pm.syncTrackBPM(track);
+    for (const st of synced) {
+      playlistUI.updateTrackMeta(st);
+      queueUI.updateTrackMeta(st);
+    }
+    playlistUI.updateTrackMeta(track);
+    queueUI.updateTrackMeta(track);
+
+    // 3) 보관함/프로파일 내 동일 곡 BPM 업데이트 + 현재 워크스페이스 자동 저장
+    profileMgr.updateTrackBPMInStorage(track);
+    scheduleWorkspaceAutoSave();
+
+    if (player.currentTrack?.id === track.id) {
+      playerUI.updateBPM(track);
+    }
+    showToast(`📌 ${track.name}: ${newBpm} BPM 고정 저장됨`);
+  },
+  async (track) => {
+    if (!track?.file) {
+      showToast('오디오 파일이 연결된 곡만 파형 재분석이 가능합니다');
+      return null;
+    }
+    Storage.clearManualBPM(track);
+    track._bpmManual = false;
+    track._bpmChecked = false;
+    try {
+      const ab = await track.file.arrayBuffer();
+      const decoded = await engine.decodeForAnalysis(ab);
+      const bpm = await detectBPM(decoded);
+      track._bpmChecked = true;
+      if (bpm) {
+        track.bpm = bpm;
+        Storage.saveTrackMeta(track, { bpmManual: false });
+        const synced = pm.syncTrackBPM(track);
+        for (const st of synced) {
+          playlistUI.updateTrackMeta(st);
+          queueUI.updateTrackMeta(st);
+        }
+        playlistUI.updateTrackMeta(track);
+        queueUI.updateTrackMeta(track);
+        if (player.currentTrack?.id === track.id) playerUI.updateBPM(track);
+        scheduleWorkspaceAutoSave();
+        showToast(`🔄 ${track.name}: ${bpm} BPM (자동 재분석 완료)`);
+      }
+      return bpm;
+    } catch (_) {
+      track._bpmChecked = true;
+      return null;
+    }
   }
-  showToast(`${track.name}: ${newBpm} BPM 설정됨`);
-});
+);
 
 const helpModal = new HelpModal();
 
@@ -276,16 +327,39 @@ async function init() {
   playlistUI.onBPMBadgeClick = openBpmEditor;
   queueUI.onBPMBadgeClick    = openBpmEditor;
 
-  // 플레이리스트 ↔ 큐 상태 동기화
+  // 플레이리스트 ↔ 큐 상태 동기화 + 워크스페이스 자동 저장
   playlistUI.onPlaylistChanged = () => {
     queueUI.refreshEmptyState();
     updateMobileTabCounts();
+    scheduleWorkspaceAutoSave();
     // 모든 탭이 비워졌고 큐도 비어있고 재생 중이 아니면 플레이어 초기화
     const totalTracks = pm.tabs.reduce((sum, tab) => sum + tab.tracks.length, 0);
     if (totalTracks === 0 && qm.length === 0 && !player.isPlaying) {
       player.unload();
       playerUI.reset();
     }
+  };
+
+  // 이전 세션 복원 후 파일 핸들 권한 원클릭 재연결
+  playlistUI.onReconnectHandles = async () => {
+    const allPending = [];
+    for (const tab of pm.tabs) {
+      for (const t of tab.tracks) {
+        if (!t.file && t.fileHandle) allPending.push(t);
+      }
+    }
+    if (allPending.length === 0) return 0;
+    const count = await profileMgr.reconnectTracksWithHandles(allPending);
+    if (count > 0) {
+      pm._notify();
+      const toAnalyze = allPending.filter((t) => t.file && !t._bpmChecked);
+      if (toAnalyze.length > 0) enqueueBackgroundAnalysis(toAnalyze);
+      showToast(`🔗 ${count}곡의 오디오 파일 연결이 활성화되었습니다`);
+      updateStatus(`오디오 파일 ${count}곡 연결 완료`);
+    } else {
+      showToast('파일 읽기 권한이 승인되지 않았습니다. 폴더를 다시 선택하거나 드래그해주세요.');
+    }
+    return count;
   };
 
   // 플레이리스트 보관함 저장 / 불러오기 / 파일 내보내기·가져오기 연결
@@ -700,6 +774,15 @@ async function init() {
     }
   });
 
+  // 이전 작업 워크스페이스(멀티 탭 플레이리스트 + 수정된 BPM) 자동 복원
+  const savedWorkspace = await profileMgr.loadWorkspaceSession();
+  if (savedWorkspace && Array.isArray(savedWorkspace.tabs) && savedWorkspace.tabs.length > 0) {
+    const toAnalyze = pm.restoreTabsFromSession(savedWorkspace.tabs, savedWorkspace.activeTabId);
+    if (toAnalyze.length > 0) {
+      enqueueBackgroundAnalysis(toAnalyze);
+    }
+  }
+
   updateMobileTabCounts();
   updateStatus('준비 완료 — 오디오 파일이나 폴더를 드래그하세요 (? 키: 단축키 안내)');
 }
@@ -1091,8 +1174,10 @@ async function bgDetectBPM(track, buffer) {
     if (!buffer) return;
     const bpm = await detectBPM(buffer);
     track._bpmChecked = true;
-    if (bpm) {
+    if (bpm && !track._bpmManual) {
       track.bpm = bpm;
+      Storage.saveTrackMeta(track, { bpmManual: false });
+      scheduleWorkspaceAutoSave();
     }
     playlistUI.updateTrackMeta(track);
     queueUI.updateTrackMeta(track);
@@ -1141,9 +1226,10 @@ async function _runBackgroundAnalysis() {
         }
         const bpm = await detectBPM(decoded);
         track._bpmChecked = true;
-        if (bpm && !track.bpm) {
+        if (bpm && !track.bpm && !track._bpmManual) {
           track.bpm = bpm;
         }
+        Storage.saveTrackMeta(track, { bpmManual: Boolean(track._bpmManual) });
       } catch (_) {
         track._bpmChecked = true;
       }
@@ -1159,11 +1245,27 @@ async function _runBackgroundAnalysis() {
       await new Promise((r) => setTimeout(r, 35));
     }
 
+    scheduleWorkspaceAutoSave();
     if (!player.isPlaying) {
       updateStatus(`준비 완료 — 총 ${pm.tracks.length}곡 (BPM 분석 완료)`);
     }
   } finally {
     _bgAnalyzing = false;
+  }
+}
+
+/* ── 워크스페이스 자동 저장 스케줄러 ─────────────────── */
+let _wsSaveTimer = null;
+function scheduleWorkspaceAutoSave() {
+  // localStorage에는 즉시 동기 반영하고, IndexedDB 핸들 저장만 디바운스 처리
+  profileMgr.saveWorkspaceSession(pm.tabs, pm.activeTabId);
+  const badge = document.querySelector('#pl-autosave-badge');
+  if (badge) {
+    badge.classList.add('saving');
+    if (_wsSaveTimer) clearTimeout(_wsSaveTimer);
+    _wsSaveTimer = setTimeout(() => {
+      badge.classList.remove('saving');
+    }, 600);
   }
 }
 

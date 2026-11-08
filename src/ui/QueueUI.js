@@ -79,10 +79,14 @@ export class QueueUI {
       const metaEl = el.querySelector('.q-meta');
       if (metaEl) {
         const tierCls = getBPMTierClass(track.bpm);
+        const manualCls = track._bpmManual ? 'bpm-manual' : '';
         const tierObj = getBPMTier(track.bpm);
-        const titleTxt = tierObj ? `${tierObj.desc} · 클릭하여 BPM 보정` : '클릭하여 BPM 보정';
+        const manualHint = track._bpmManual ? ' [수동 고정됨]' : '';
+        const titleTxt = tierObj
+          ? `${tierObj.desc}${manualHint} · 클릭하여 BPM 수정 (단축키 B)`
+          : `클릭하여 BPM 수정${manualHint} (단축키 B)`;
         metaEl.innerHTML = `
-          ${track.bpm ? `<span class="bpm-badge bpm-interactive ${tierCls}" data-bpm-id="${track.id}" title="${titleTxt}">${track.bpm}</span>` : ''}
+          ${track.bpm ? `<span class="bpm-badge bpm-interactive ${tierCls} ${manualCls}" data-bpm-id="${track.id}" title="${titleTxt}">${track.bpm}</span>` : ''}
           <span class="q-dur">${track.durationLabel}</span>
         `;
         const badge = metaEl.querySelector('[data-bpm-id]');
@@ -390,8 +394,12 @@ export class QueueUI {
       const isMissing = (!t.file || this._missingTrackIds.has(t.id)) ? 'missing' : '';
       const isPlayed  = this._playedTrackIds.has(t.id) ? 'played' : '';
       const tierCls   = getBPMTierClass(t.bpm);
+      const manualCls = t._bpmManual ? 'bpm-manual' : '';
       const tierObj   = getBPMTier(t.bpm);
-      const bpmTitle  = tierObj ? `${tierObj.desc} · 클릭하여 BPM 보정` : '클릭하여 BPM 보정';
+      const manualHint = t._bpmManual ? ' [수동 고정됨]' : '';
+      const bpmTitle  = tierObj
+        ? `${tierObj.desc}${manualHint} · 클릭하여 BPM 수정 (단축키 B)`
+        : `클릭하여 BPM 수정${manualHint} (단축키 B)`;
 
       return `
       <li class="q-item ${isPlaying} ${isCueing} ${isMissing} ${isPlayed}" data-id="${t.id}" data-idx="${i}" draggable="true" tabindex="0">
@@ -401,7 +409,7 @@ export class QueueUI {
           <span class="q-artist">${escHtml(t.artist)}</span>
         </div>
         <div class="q-meta">
-          ${t.bpm ? `<span class="bpm-badge bpm-interactive ${tierCls}" data-bpm-id="${t.id}" title="${bpmTitle}">${t.bpm}</span>` : ''}
+          ${t.bpm ? `<span class="bpm-badge bpm-interactive ${tierCls} ${manualCls}" data-bpm-id="${t.id}" title="${bpmTitle}">${t.bpm}</span>` : ''}
           <span class="q-dur">${t.durationLabel}</span>
         </div>
         <div class="q-actions">
@@ -477,6 +485,12 @@ export class QueueUI {
         } else if (e.key === 'p' || e.key === 'P' || e.code === 'Enter') {
           e.preventDefault();
           if (this.onTrackDoubleClick) this.onTrackDoubleClick(track.id);
+        } else if (e.key === 'b' || e.key === 'B') {
+          e.preventDefault();
+          const badgeEl = el.querySelector('[data-bpm-id]') || el.querySelector('.q-meta');
+          if (badgeEl && this.onBPMBadgeClick) {
+            this.onBPMBadgeClick(track, badgeEl);
+          }
         } else if (e.key === 'q' || e.key === 'Q') {
           e.preventDefault();
           await this._triggerCue(track);

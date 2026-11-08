@@ -493,6 +493,90 @@
   color: var(--gold);
 }
 
+/* ── 자동저장 상태 배지 & 오디오 재연결 안내 배너 ────────── */
+.pl-autosave-badge {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--accent-green);
+  background: rgba(62, 207, 133, 0.10);
+  border: 1px solid rgba(62, 207, 133, 0.25);
+  border-radius: 999px;
+  padding: 1px 6px;
+  white-space: nowrap;
+  cursor: help;
+  transition: all var(--dur-fast) var(--ease);
+}
+
+.pl-autosave-badge.saving {
+  background: var(--gold-subtle);
+  border-color: var(--border-gold);
+  color: var(--gold);
+}
+
+@media (max-width: 640px) {
+  .pl-autosave-badge {
+    display: none;
+  }
+}
+
+.pl-reconnect-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px var(--sp-md);
+  background: rgba(240, 192, 96, 0.10);
+  border-bottom: 1px solid var(--border-gold);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.pl-reconnect-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gold);
+  min-width: 0;
+}
+
+.pl-reconnect-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.pl-reconnect-btn {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: all var(--dur-fast) var(--ease);
+}
+
+.pl-reconnect-btn.primary {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #09090f;
+}
+
+.pl-reconnect-btn:hover {
+  border-color: var(--border-gold);
+  color: var(--gold);
+}
+
+.pl-reconnect-btn.primary:hover {
+  color: #09090f;
+  filter: brightness(1.08);
+}
+
 /* ── 트랙 리스트 ─────────────────────────────────────── */
 .track-list {
   list-style: none;

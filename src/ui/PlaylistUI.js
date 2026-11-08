@@ -36,6 +36,7 @@ export class PlaylistUI {
     this.onExportPlaylist          = null; // (format: 'json' | 'm3u8') => void
     this.onImportPlaylistFile      = null; // (file: File) => Promise<void>
     this.onTabCopiedTrack          = null; // (track, targetTab) => void
+    this.onReconnectHandles        = null; // () => Promise<number>
 
     this._playingTrackId = null;
     this._cueingTrackId  = null;
@@ -113,6 +114,7 @@ export class PlaylistUI {
         <div class="panel-title-wrap">
           <span class="panel-title">🎵 플레이리스트</span>
           <span class="track-count" id="pl-count">0곡</span>
+          <span class="pl-autosave-badge" id="pl-autosave-badge" title="열려 있는 모든 플레이리스트 탭과 수정한 BPM은 브라우저에 자동 저장되며, 앱을 다시 켜면 그대로 복원됩니다">✓ 자동저장</span>
         </div>
         <div class="panel-header-actions">
           <button class="btn-text btn-text-gold" id="pl-io-btn" type="button" title="플레이리스트 보관함 저장/불러오기 및 JSON·M3U8 파일 내보내기">💾 보관함</button>
@@ -188,6 +190,15 @@ export class PlaylistUI {
         </div>
       </div>
 
+      <!-- 이전 세션 복원 후 오디오 권한/폴더 원클릭 재연결 배너 -->
+      <div class="pl-reconnect-banner" id="pl-reconnect-banner" style="display:none">
+        <span class="pl-reconnect-text" id="pl-reconnect-text">🔗 이전 플레이리스트가 복원되었습니다</span>
+        <div class="pl-reconnect-actions">
+          <button type="button" class="pl-reconnect-btn primary" id="pl-reconnect-handles-btn" title="클릭 한 번으로 저장된 오디오 파일 읽기 권한을 다시 활성화합니다">🔗 오디오 연결</button>
+          <button type="button" class="pl-reconnect-btn" id="pl-reconnect-folder-btn" title="음악 폴더를 선택하면 곡 순서와 수정된 BPM은 그대로 유지한 채 오디오 파일을 자동 매칭합니다">📁 폴더 매칭</button>
+        </div>
+      </div>
+
       <ul class="track-list" id="pl-list"></ul>
       <input type="file" id="pl-file-input" multiple accept="audio/*,.mp3,.flac,.wav,.ogg,.aac,.m4a,.opus,.aiff,.wma" style="display:none" />
       <input type="file" id="pl-folder-input" webkitdirectory directory multiple style="display:none" />
@@ -208,6 +219,10 @@ export class PlaylistUI {
     this._saveNameInput = this.container.querySelector('#pl-save-name-input');
     this._savedListEl = this.container.querySelector('#pl-saved-list');
     this._importInput = this.container.querySelector('#pl-import-input');
+    this._reconnectBannerEl = this.container.querySelector('#pl-reconnect-banner');
+    this._reconnectTextEl   = this.container.querySelector('#pl-reconnect-text');
+    this._reconnectHandlesBtn = this.container.querySelector('#pl-reconnect-handles-btn');
+    this._reconnectFolderBtn  = this.container.querySelector('#pl-reconnect-folder-btn');
 
     // 멀티 탭 컨트롤 이벤트
     this.container.querySelector('#pl-tab-add-btn').addEventListener('click', () => {
@@ -330,6 +345,12 @@ export class PlaylistUI {
     this.container.querySelector('#pl-add-folder-btn').addEventListener('click', openFolderPicker);
     this.container.querySelector('#pl-drop-add-btn')?.addEventListener('click', openFilePicker);
     this.container.querySelector('#pl-drop-folder-btn')?.addEventListener('click', openFolderPicker);
+    this._reconnectFolderBtn?.addEventListener('click', openFolderPicker);
+    this._reconnectHandlesBtn?.addEventListener('click', async () => {
+      if (this.onReconnectHandles) {
+        await this.onReconnectHandles();
+      }
+    });
 
     // 주의: input.value 초기화 시 FileList가 비워지므로 반드시 배열로 먼저 복사
     this._fileInput.addEventListener('change', (e) => {
@@ -679,11 +700,29 @@ export class PlaylistUI {
     }
 
     if (tracks.length === 0) {
+      if (this._reconnectBannerEl) this._reconnectBannerEl.style.display = 'none';
       this._dropZone.style.display = 'flex';
       this._listEl.innerHTML = '';
       return;
     }
     this._dropZone.style.display = 'none';
+
+    // 오디오 미연결(세션 복원/JSON 불러오기) 상태 배너 업데이트
+    if (this._reconnectBannerEl) {
+      const stats = this.pm.getMissingFileStats();
+      if (stats.activeMissing > 0) {
+        this._reconnectBannerEl.style.display = 'flex';
+        if (stats.activeWithHandles > 0) {
+          this._reconnectTextEl.textContent = `🔗 복원된 ${stats.activeMissing}곡 오디오 대기 중`;
+          this._reconnectHandlesBtn.style.display = 'inline-flex';
+        } else {
+          this._reconnectTextEl.textContent = `📂 오디오 미연결 ${stats.activeMissing}곡 (폴더/파일 드롭 시 자동 매칭)`;
+          this._reconnectHandlesBtn.style.display = 'none';
+        }
+      } else {
+        this._reconnectBannerEl.style.display = 'none';
+      }
+    }
 
     if (filtered.length === 0) {
       this._listEl.innerHTML = `
@@ -706,13 +745,17 @@ export class PlaylistUI {
       let bpmHtml;
       if (t.bpm) {
         const tierCls = getBPMTierClass(t.bpm);
+        const manualCls = t._bpmManual ? 'bpm-manual' : '';
         const tierObj = getBPMTier(t.bpm);
-        const titleTxt = tierObj ? `${tierObj.desc} · 클릭하여 BPM 보정` : '클릭하여 BPM 보정';
-        bpmHtml = `<span class="bpm-badge bpm-interactive ${tierCls}" data-bpm-id="${t.id}" title="${titleTxt}">${t.bpm} BPM</span>`;
+        const manualHint = t._bpmManual ? ' [수동 고정됨 — 재로드 시 유지]' : '';
+        const titleTxt = tierObj
+          ? `${tierObj.desc}${manualHint} · 클릭하여 BPM 수정 (÷2 / ×2 / 직접 입력, 단축키 B)`
+          : `클릭하여 BPM 수정${manualHint} (단축키 B)`;
+        bpmHtml = `<span class="bpm-badge bpm-interactive ${tierCls} ${manualCls}" data-bpm-id="${t.id}" title="${titleTxt}">${t.bpm} BPM</span>`;
       } else if (!t._bpmChecked && t.file) {
         bpmHtml = `<span class="bpm-badge bpm-loading bpm-interactive" data-bpm-id="${t.id}" title="BPM 자동 분석 대기 중 (클릭하여 직접 입력)">…</span>`;
       } else {
-        bpmHtml = `<span class="bpm-badge bpm-unset bpm-interactive" data-bpm-id="${t.id}" title="클릭하여 BPM 입력">—</span>`;
+        bpmHtml = `<span class="bpm-badge bpm-unset bpm-interactive" data-bpm-id="${t.id}" title="클릭하여 BPM 입력 (단축키 B)">—</span>`;
       }
 
       return `
@@ -752,9 +795,12 @@ export class PlaylistUI {
       });
 
       // 더블클릭 → 큐에 추가 (Shift+더블클릭 → 바로 다음 곡으로 예약)
-      el.addEventListener('dblclick', (e) => {
+      el.addEventListener('dblclick', async (e) => {
         if (e.target.closest('button') || e.target.closest('.bpm-badge')) return;
         if (!track) return;
+        if (!track.file && track.fileHandle && this.onReconnectHandles) {
+          await this.onReconnectHandles();
+        }
         if (e.shiftKey && this.onAddNextToQueue) {
           this.onAddNextToQueue(track);
         } else {
@@ -795,6 +841,12 @@ export class PlaylistUI {
           e.preventDefault();
           items[items.length - 1]?.focus();
           items[items.length - 1]?.scrollIntoView({ block: 'nearest' });
+        } else if (e.key === 'b' || e.key === 'B') {
+          e.preventDefault();
+          const badgeEl = el.querySelector('[data-bpm-id]');
+          if (badgeEl && this.onBPMBadgeClick) {
+            this.onBPMBadgeClick(track, badgeEl);
+          }
         } else if (e.key === 'q' || e.key === 'Q') {
           e.preventDefault();
           this.onCue?.(track);
@@ -918,23 +970,27 @@ export class PlaylistUI {
     }
   }
 
-  /* BPM/duration 업데이트 후 특정 트랙 리스트 항목만 갱신 */
+    /* BPM/duration 업데이트 후 특정 트랙 리스트 항목만 갱신 */
   updateTrackMeta(track) {
     const el = this._listEl?.querySelector(`.track-item[data-id="${track.id}"]`);
     if (!el) return;
     const bpmEl = el.querySelector('.bpm-badge');
     const durEl = el.querySelector('.track-duration');
     if (bpmEl) {
-      bpmEl.classList.remove('bpm-loading', 'bpm-unset');
+      bpmEl.classList.remove('bpm-loading', 'bpm-unset', 'bpm-manual');
       applyBPMTierClass(bpmEl, track.bpm);
       if (track.bpm) {
+        if (track._bpmManual) bpmEl.classList.add('bpm-manual');
         const tierObj = getBPMTier(track.bpm);
+        const manualHint = track._bpmManual ? ' [수동 고정됨 — 재로드 시 유지]' : '';
         bpmEl.textContent = `${track.bpm} BPM`;
-        bpmEl.title = tierObj ? `${tierObj.desc} · 클릭하여 BPM 보정` : '클릭하여 BPM 보정';
+        bpmEl.title = tierObj
+          ? `${tierObj.desc}${manualHint} · 클릭하여 BPM 수정 (÷2 / ×2 / 직접 입력, 단축키 B)`
+          : `클릭하여 BPM 수정${manualHint} (단축키 B)`;
       } else {
         bpmEl.textContent = '—';
         bpmEl.classList.add('bpm-unset');
-        bpmEl.title = '클릭하여 BPM 입력';
+        bpmEl.title = '클릭하여 BPM 입력 (단축키 B)';
       }
     }
     if (durEl) durEl.textContent = track.durationLabel;

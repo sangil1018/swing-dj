@@ -522,6 +522,17 @@ button { cursor: pointer; border: none; font-family: var(--font-ui); }
   transform: translateY(-0.5px);
 }
 
+.bpm-badge.bpm-manual {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.bpm-badge.bpm-manual::before {
+  content: '•';
+  font-size: 10px;
+  margin-right: 3px;
+  opacity: 0.9;
+}
+
 .bpm-loading {
   opacity: 0.55;
   animation: pulse 1.4s ease-in-out infinite;
@@ -599,14 +610,14 @@ button { cursor: pointer; border: none; font-family: var(--font-ui); }
 /* ── BPM 수동 보정 / TAP 팝오버 ─────────────────────── */
 .bpm-popover {
   position: fixed;
-  width: 224px;
+  width: 248px;
   background: var(--bg-card);
   border: 1px solid var(--border-gold);
   border-radius: var(--r-md);
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   z-index: 1200;
   box-shadow: 0 10px 32px rgba(0,0,0,0.7);
   animation: fadeIn 120ms var(--ease) both;
@@ -620,6 +631,8 @@ button { cursor: pointer; border: none; font-family: var(--font-ui); }
 }
 
 .bpm-pop-title {
+  flex: 1;
+  min-width: 0;
   font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
@@ -628,12 +641,31 @@ button { cursor: pointer; border: none; font-family: var(--font-ui); }
   text-overflow: ellipsis;
 }
 
+.bpm-pop-status {
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.bpm-pop-status.manual {
+  background: var(--gold-subtle);
+  border-color: var(--border-gold);
+  color: var(--gold);
+}
+
 .bpm-pop-close {
   background: transparent;
   color: var(--text-muted);
   font-size: 11px;
   padding: 2px 4px;
   border-radius: 4px;
+  flex-shrink: 0;
 }
 .bpm-pop-close:hover { color: var(--accent-red); }
 
@@ -648,15 +680,39 @@ button { cursor: pointer; border: none; font-family: var(--font-ui); }
   border: 1px solid var(--border);
   color: var(--text-primary);
   font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 6px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 6px 11px;
   border-radius: var(--r-sm);
   transition: all var(--dur-fast) var(--ease);
 }
 .bpm-pop-btn:hover {
   border-color: var(--border-gold);
   color: var(--gold);
+  background: var(--gold-subtle);
+}
+
+.bpm-pop-fine-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.bpm-fine-btn {
+  height: 24px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  transition: all var(--dur-fast) var(--ease);
+}
+.bpm-fine-btn:hover {
+  border-color: var(--border-gold);
+  color: var(--gold);
+  background: var(--bg-hover);
 }
 
 .bpm-pop-input {
@@ -677,7 +733,7 @@ button { cursor: pointer; border: none; font-family: var(--font-ui); }
 
 .bpm-pop-actions {
   display: flex;
-  gap: 6px;
+  gap: 5px;
 }
 
 .bpm-tap-btn {
@@ -688,11 +744,32 @@ button { cursor: pointer; border: none; font-family: var(--font-ui); }
   border-radius: var(--r-sm);
   font-size: 11px;
   font-weight: 600;
-  padding: 6px 8px;
+  padding: 6px 6px;
+  white-space: nowrap;
   transition: all var(--dur-fast) var(--ease);
 }
 .bpm-tap-btn:hover { background: rgba(62, 207, 133, 0.22); }
 .bpm-tap-btn:active { transform: scale(0.96); }
+
+.bpm-reanalyze-btn {
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: var(--r-sm);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 6px 7px;
+  white-space: nowrap;
+  transition: all var(--dur-fast) var(--ease);
+}
+.bpm-reanalyze-btn:hover:not(:disabled) {
+  border-color: var(--border-gold);
+  color: var(--gold);
+}
+.bpm-reanalyze-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
 
 .bpm-apply-btn {
   background: var(--gold);
@@ -700,7 +777,8 @@ button { cursor: pointer; border: none; font-family: var(--font-ui); }
   border-radius: var(--r-sm);
   font-size: 11px;
   font-weight: 700;
-  padding: 6px 12px;
+  padding: 6px 10px;
+  white-space: nowrap;
 }
 .bpm-apply-btn:hover { background: #ffd080; }
 

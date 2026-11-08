@@ -8,6 +8,7 @@
 
 import { getNextTrackId, extractFormatLabel, parseFilename } from '../utils/FileLoader.js';
 import { formatDuration } from '../utils/TimeFormatter.js';
+import { Storage } from '../utils/Storage.js';
 
 let _tabSeq = 1;
 
@@ -132,40 +133,72 @@ export class PlaylistManager {
   }
 
   /* ── 트랙 추가 / 삭제 / 정렬 ────────────────────────── */
+  _matchesPlaceholder(p, t) {
+    if (!p || p.file || !t?.file) return false;
+    if (p.fileName && p.fileName.toLowerCase() === t.file.name.toLowerCase()) return true;
+    if (
+      p.name &&
+      t.name &&
+      p.name.toLowerCase() === t.name.toLowerCase() &&
+      (!p.artist || !t.artist || p.artist.toLowerCase() === t.artist.toLowerCase())
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  _hydratePlaceholder(placeholder, t) {
+    placeholder.file       = t.file;
+    placeholder.fileHandle = t.fileHandle || t.file._handle || placeholder.fileHandle || null;
+    placeholder.fileName   = t.file.name;
+    placeholder.size       = t.file.size;
+    placeholder.type       = t.file.type || placeholder.type;
+    placeholder.format     = t.format || placeholder.format;
+    if (t.albumArt) placeholder.albumArt = t.albumArt;
+    if (t._bpmManual && t.bpm) {
+      placeholder.bpm = t.bpm;
+      placeholder._bpmChecked = true;
+      placeholder._bpmManual = true;
+    } else if (!placeholder.bpm && t.bpm) {
+      placeholder.bpm = t.bpm;
+      placeholder._bpmChecked = true;
+      placeholder._bpmManual = Boolean(t._bpmManual);
+    }
+    if ((!placeholder.duration || placeholder.duration <= 0) && t.duration > 0) {
+      placeholder.duration = t.duration;
+      placeholder.durationLabel = t.durationLabel;
+    }
+    placeholder._unavailable = false;
+    placeholder._needsPermission = false;
+    Storage.applyCachedMetaToTrack(placeholder);
+  }
+
   addTracks(newTracks) {
     const curTracks = this.activeTab.tracks;
 
-    // 1) 기존에 파일 없이 불러온 플레이스홀더(_unavailable) 트랙이 있으면 자동 매칭 연결
+    // 1) 기존에 파일 없이 불러온 플레이스홀더(_unavailable) 트랙이 있으면 자동 매칭 연결 (모든 탭 동시 복구)
     const existingKeys = new Set(
       curTracks.filter((t) => t.file).map((t) => `${t.file.name}:${t.file.size}`)
     );
 
     const added = [];
     for (const t of newTracks) {
+      Storage.applyCachedMetaToTrack(t);
+
       if (t.file) {
-        const placeholder = curTracks.find(
-          (p) => !p.file && (
-            (p.fileName && p.fileName.toLowerCase() === t.file.name.toLowerCase()) ||
-            (p.name.toLowerCase() === t.name.toLowerCase() &&
-             (!p.artist || !t.artist || p.artist.toLowerCase() === t.artist.toLowerCase()))
-          )
-        );
+        // 다른 비활성 탭에 있는 동일 미연결 트랙도 함께 파일 연결
+        for (const tab of this._tabs) {
+          if (tab.id === this.activeTab.id) continue;
+          for (const p of tab.tracks) {
+            if (this._matchesPlaceholder(p, t)) {
+              this._hydratePlaceholder(p, t);
+            }
+          }
+        }
+
+        const placeholder = curTracks.find((p) => this._matchesPlaceholder(p, t));
         if (placeholder) {
-          placeholder.file       = t.file;
-          placeholder.fileHandle = t.fileHandle || t.file._handle || null;
-          placeholder.size       = t.file.size;
-          placeholder.type       = t.file.type || placeholder.type;
-          placeholder.format     = t.format || placeholder.format;
-          if (t.albumArt) placeholder.albumArt = t.albumArt;
-          if (!placeholder.bpm && t.bpm) {
-            placeholder.bpm = t.bpm;
-            placeholder._bpmChecked = true;
-          }
-          if ((!placeholder.duration || placeholder.duration <= 0) && t.duration > 0) {
-            placeholder.duration = t.duration;
-            placeholder.durationLabel = t.durationLabel;
-          }
-          placeholder._unavailable = false;
+          this._hydratePlaceholder(placeholder, t);
           existingKeys.add(`${t.file.name}:${t.file.size}`);
           added.push(placeholder);
           continue;
@@ -185,6 +218,98 @@ export class PlaylistManager {
 
     this._notify();
     return added;
+  }
+
+  /** 동일 곡이 여러 탭에 있을 때 수동 수정된 BPM을 모든 탭에 동기화 */
+  syncTrackBPM(updatedTrack) {
+    if (!updatedTrack) return [];
+    const synced = [];
+    const targetFile = (updatedTrack.file?.name || updatedTrack.fileName || '').toLowerCase();
+    const targetName = (updatedTrack.name || '').toLowerCase();
+    const targetArtist = (updatedTrack.artist || '').toLowerCase();
+
+    for (const tab of this._tabs) {
+      for (const t of tab.tracks) {
+        const sameId = t.id === updatedTrack.id;
+        const tFile = (t.file?.name || t.fileName || '').toLowerCase();
+        const sameFile = Boolean(targetFile && tFile && targetFile === tFile);
+        const sameTitle = Boolean(
+          targetName &&
+          (t.name || '').toLowerCase() === targetName &&
+          (!targetArtist || !(t.artist || '') || (t.artist || '').toLowerCase() === targetArtist)
+        );
+        if (sameId || sameFile || sameTitle) {
+          t.bpm = updatedTrack.bpm;
+          t._bpmChecked = Boolean(updatedTrack.bpm);
+          t._bpmManual = Boolean(updatedTrack._bpmManual);
+          synced.push(t);
+        }
+      }
+    }
+    return synced;
+  }
+
+  /** 현재 탭 및 전체 탭의 오디오 미연결 트랙 통계 반환 */
+  getMissingFileStats() {
+    let activeMissing = 0;
+    let activeWithHandles = 0;
+    let totalMissing = 0;
+    let totalWithHandles = 0;
+
+    for (const tab of this._tabs) {
+      for (const t of tab.tracks) {
+        if (!t.file) {
+          totalMissing++;
+          if (t.fileHandle) totalWithHandles++;
+          if (tab.id === this.activeTab.id) {
+            activeMissing++;
+            if (t.fileHandle) activeWithHandles++;
+          }
+        }
+      }
+    }
+    return { activeMissing, activeWithHandles, totalMissing, totalWithHandles };
+  }
+
+  /** 저장된 워크스페이스 세션으로부터 멀티 탭 전체 복원 */
+  restoreTabsFromSession(sessionTabs, activeTabId) {
+    if (!Array.isArray(sessionTabs) || sessionTabs.length === 0) return [];
+    const builtTabs = [];
+    const toAnalyze = [];
+
+    for (const st of sessionTabs) {
+      const tabTracks = [];
+      for (const meta of st.tracks || []) {
+        const tr = this._buildTrackFromMeta(meta);
+        if (meta.file) {
+          tr.file = meta.file;
+          tr.size = meta.file.size || meta.size || 0;
+          tr.type = meta.file.type || meta.type || 'audio/mpeg';
+          tr._unavailable = false;
+          tr._needsPermission = false;
+        } else if (meta.fileHandle) {
+          tr.fileHandle = meta.fileHandle;
+          tr._needsPermission = true;
+          tr._unavailable = true;
+        }
+        Storage.applyCachedMetaToTrack(tr);
+        if (tr.file && !tr._bpmChecked) {
+          toAnalyze.push(tr);
+        }
+        tabTracks.push(tr);
+      }
+      builtTabs.push({
+        id: st.id || `tab_${++_tabSeq}_${Date.now().toString(36)}`,
+        name: String(st.name || '플레이리스트').slice(0, 32),
+        tracks: tabTracks,
+      });
+    }
+
+    this._tabs = builtTabs;
+    const foundActive = builtTabs.find((t) => t.id === activeTabId);
+    this._activeId = foundActive ? foundActive.id : builtTabs[0].id;
+    this._notify();
+    return toAnalyze;
   }
 
   /** 프로파일/보관함 복원 전용 — 중복 체크 없이 직접 추가 */
@@ -300,11 +425,13 @@ export class PlaylistManager {
         artist:        t.artist || '',
         album:         t.album  || '',
         bpm:           t.bpm    || null,
+        bpmManual:     Boolean(t._bpmManual),
         duration:      t.duration || 0,
         durationLabel: t.durationLabel || '0:00',
         format:        t.format || extractFormatLabel(t.file?.name || t.name),
         fileName:      t.file?.name || t.fileName || '',
         size:          t.file?.size || t.size || 0,
+        loudness:      t.loudness || null,
       })),
     };
   }
@@ -395,24 +522,32 @@ export class PlaylistManager {
     const matched = this.findLoadedFileMatch(meta);
     const dur = meta.duration || matched?.duration || 0;
     const bpm = meta.bpm || matched?.bpm || null;
-    return {
+    const track = {
       id:            getNextTrackId(),
       file:          matched?.file || meta.file || null,
       fileHandle:    matched?.fileHandle || meta.fileHandle || null,
       fileName:      meta.fileName || matched?.file?.name || '',
+      size:          meta.size || matched?.file?.size || 0,
       name:          meta.name || '알 수 없는 트랙',
       artist:        meta.artist || '알 수 없는 아티스트',
       album:         meta.album || matched?.album || '',
       bpm,
       _bpmChecked:   Boolean(bpm || (!matched?.file && !meta.file)),
+      _bpmManual:    Boolean(meta.bpmManual || matched?._bpmManual),
       format:        meta.format || extractFormatLabel(meta.fileName || meta.name),
       duration:      dur,
       durationLabel: meta.durationLabel && meta.durationLabel !== '0:00'
         ? meta.durationLabel
         : formatDuration(dur),
+      loudness:      meta.loudness || matched?.loudness || null,
       albumArt:      matched?.albumArt || null,
       _unavailable:  !(matched?.file || meta.file),
     };
+    Storage.applyCachedMetaToTrack(track);
+    if (track.bpm && track._bpmManual) {
+      Storage.saveTrackMeta(track, { bpmManual: true });
+    }
+    return track;
   }
 
   _notify() {

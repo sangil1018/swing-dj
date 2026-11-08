@@ -46,6 +46,7 @@ export class HelpModal {
               <h4>⌨️ 키보드 단축키</h4>
               <ul>
                 <li><span>목록 위/아래 이동</span><strong><kbd>↑</kbd> / <kbd>↓</kbd></strong></li>
+                <li><span>선택 곡 BPM 수정 (÷2 / ×2)</span><strong><kbd>B</kbd></strong></li>
                 <li><span>선택 곡 미리듣기 (CUE)</span><strong><kbd>Q</kbd></strong></li>
                 <li><span>메인 재생 / 일시정지</span><strong><kbd>P</kbd></strong></li>
                 <li><span>부드러운 페이드 아웃</span><strong><kbd>F</kbd></strong></li>
