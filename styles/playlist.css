@@ -513,7 +513,7 @@
   color: var(--gold);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 1599px) {
   .pl-autosave-badge {
     display: none;
   }
@@ -836,6 +836,12 @@
   display: flex;
   align-items: center;
   gap: 3px;
+  flex-shrink: 0;
+}
+
+.panel-header-actions .btn-text {
+  padding: 3px 6px;
+  font-size: 11px;
 }
 
 /* ── 상태 하이라이트 (재생 완료 / 메인 재생 중 / CUE 미리듣기 중 / 유실) ── */

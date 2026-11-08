@@ -210,6 +210,8 @@
   align-items: center;
   gap: 9px;
   transition: border-color var(--dur-med) var(--ease), box-shadow var(--dur-med) var(--ease);
+  container-type: inline-size;
+  container-name: deck;
 }
 
 .player-main.player-playing {
@@ -602,38 +604,6 @@
   border-top: 1px solid var(--border);
 }
 
-@media (max-width: 640px), (max-width: 1024px) and (max-height: 520px) and (orientation: landscape) {
-  .player-bottom-row {
-    gap: 6px;
-    flex-wrap: nowrap;
-  }
-
-  .volume-section {
-    min-width: 0;
-    gap: 5px;
-  }
-
-  #vol-label {
-    min-width: 28px;
-    font-size: 10.5px;
-  }
-
-  .player-options {
-    gap: 5px;
-    padding: 3px 6px;
-    flex-shrink: 0;
-  }
-
-  .opt-label {
-    font-size: 10.5px;
-    gap: 2px;
-  }
-
-  .opt-emoji {
-    display: none;
-  }
-}
-
 .volume-section {
   display: flex;
   align-items: center;
@@ -706,6 +676,68 @@
 .opt-label input[type="checkbox"] {
   accent-color: var(--gold);
   cursor: pointer;
+}
+
+/* 플레이어 카드 폭 기준(컨테이너 쿼리) 반응형:
+   카드가 좁아지면 볼륨 슬라이더가 찌그러지지 않도록 [볼륨] / [아트·EQ·파형] 두 줄로 분리 */
+@container deck (max-width: 540px) {
+  .player-bottom-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 7px;
+    padding-top: 7px;
+  }
+
+  .volume-section {
+    flex: none;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .vol-slider {
+    height: 5px;
+  }
+
+  .vol-slider::-webkit-slider-thumb {
+    width: 18px;
+    height: 18px;
+  }
+
+  #vol-label {
+    min-width: 40px;
+  }
+
+  .player-options {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    padding: 3px;
+  }
+
+  .opt-label {
+    justify-content: center;
+    min-height: 28px;
+    padding: 0 6px;
+    border-radius: 4px;
+    font-size: 11.5px;
+    gap: 5px;
+  }
+
+  .opt-label:hover {
+    background: var(--bg-hover);
+  }
+
+  .opt-emoji {
+    display: inline;
+  }
+}
+
+/* 아주 좁은 카드(예: 갤럭시 세로 360px)에서는 이모지를 숨겨 라벨 잘림 방지 */
+@container deck (max-width: 300px) {
+  .opt-emoji {
+    display: none;
+  }
 }
 
 /* ══ DJ 전용 도구 (🏆 컴핏모드 타이머 + ⏱️ 메트로놈) ═════════ */
