@@ -50,11 +50,15 @@ export class EQPanel {
         <!-- ── 헤더: 제목 + 상태 뱃지 + 하이파이 DSP 토글 + 프리셋 ── -->
         <div class="eq-header">
           <div class="eq-title-group">
-            <span class="eq-title">Equalizer</span>
-            <span class="eq-mode-badge bit-perfect" id="eq-mode-badge" title="모든 밴드가 0dB일 때 필터를 완전히 우회(Bit-Perfect)하여 원음을 출력합니다">Bit-Perfect</span>
-            <span class="eq-sr-badge" id="eq-sr-badge" title="오디오 엔진 네이티브 샘플레이트 및 신호 경로">Direct</span>
-            <button type="button" class="eq-dsp-btn" id="btn-autogain" title="트랙 간 음량 자동 평준화 (Auto-Gain: -14 dBFS RMS 기준 자동 보정 및 피크 보호)">🔊 Auto-Gain</button>
-            <button type="button" class="eq-dsp-btn" id="btn-mono" title="빠/홀 PA 환경을 위한 모노 출력 합산 (빈티지 스테레오 재즈 음원의 좌우 악기 쏠림 방지)">🎧 Mono</button>
+            <div class="eq-title-badges">
+              <span class="eq-title">Equalizer</span>
+              <span class="eq-mode-badge bit-perfect" id="eq-mode-badge" role="button" tabindex="0" title="클릭 시 0dB Bit-Perfect 직결 모드로 초기화 (EQ 필터 우회)">Bit-Perfect</span>
+              <span class="eq-sr-badge" id="eq-sr-badge" title="오디오 엔진 네이티브 샘플레이트 및 신호 경로">Direct</span>
+            </div>
+            <div class="eq-dsp-actions">
+              <button type="button" class="eq-dsp-btn" id="btn-autogain" title="트랙 간 음량 자동 평준화 (Auto-Gain: -14 dBFS RMS 기준 자동 보정 및 피크 보호)">🔊 Auto-Gain</button>
+              <button type="button" class="eq-dsp-btn" id="btn-mono" title="빠/홀 PA 환경을 위한 모노 출력 합산 (빈티지 스테레오 재즈 음원의 좌우 악기 쏠림 방지)">🎧 Mono</button>
+            </div>
           </div>
           <div class="eq-presets" id="eq-presets-bar"></div>
         </div>
@@ -120,6 +124,23 @@ export class EQPanel {
       this.storage.saveSettings(s);
       this.syncAudioModeUI();
       showToast(next ? '🎧 Mono 출력 ON: 좌/우 채널을 합산하여 양쪽 스피커에 균등 출력합니다' : '🎧 Stereo 출력 복귀');
+    });
+
+    // Bit-Perfect / EQ Active 배지 클릭 시 Flat 초기화
+    this._modeBadgeEl?.addEventListener('click', () => {
+      const isFlat = this._currentBands.every((g) => Math.abs(g) < 0.01);
+      if (!isFlat) {
+        this.applyBands([0, 0, 0, 0, 0]);
+        showToast('Bit-Perfect 직결 모드로 복귀 (0dB Flat 초기화)');
+      } else {
+        showToast('현재 Bit-Perfect 직결 모드 (EQ 필터 우회)입니다');
+      }
+    });
+    this._modeBadgeEl?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        this._modeBadgeEl.click();
+      }
     });
 
     // ── 슬라이더 이벤트 연결 ──────────────────────────────
