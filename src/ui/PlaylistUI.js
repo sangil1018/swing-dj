@@ -37,6 +37,7 @@ export class PlaylistUI {
     this.onImportPlaylistFile      = null; // (file: File) => Promise<void>
     this.onTabCopiedTrack          = null; // (track, targetTab) => void
     this.onReconnectHandles        = null; // () => Promise<number>
+    this.onReconnectFolder         = null; // () => Promise<void>
 
     this._playingTrackId = null;
     this._cueingTrackId  = null;
@@ -143,6 +144,7 @@ export class PlaylistUI {
           <button type="button" class="pl-io-chip-btn" id="pl-export-json-btn" title="현재 탭을 JSON 파일(.swingdj.json)로 내보내기">📥 JSON 저장</button>
           <button type="button" class="pl-io-chip-btn" id="pl-export-m3u-btn" title="현재 탭을 M3U8 파일(.m3u8)로 내보내기">📥 M3U8 저장</button>
           <button type="button" class="pl-io-chip-btn" id="pl-import-file-btn" title="JSON 또는 M3U/M3U8 플레이리스트 파일 불러오기">📂 파일 불러오기</button>
+          <button type="button" class="pl-io-chip-btn" id="pl-drawer-folder-btn" title="다른 기기나 폴더 이동 시 음원 폴더를 지정하여 플레이리스트의 미연결 곡을 자동 매칭">📁 음원 폴더 찾기</button>
           <input type="file" id="pl-import-input" accept=".json,.m3u,.m3u8,application/json,audio/x-mpegurl" style="display:none" />
         </div>
         <div class="pl-saved-section">
@@ -195,7 +197,7 @@ export class PlaylistUI {
         <span class="pl-reconnect-text" id="pl-reconnect-text">🔗 이전 플레이리스트가 복원되었습니다</span>
         <div class="pl-reconnect-actions">
           <button type="button" class="pl-reconnect-btn primary" id="pl-reconnect-handles-btn" title="클릭 한 번으로 저장된 오디오 파일 읽기 권한을 다시 활성화합니다">🔗 오디오 연결</button>
-          <button type="button" class="pl-reconnect-btn" id="pl-reconnect-folder-btn" title="음악 폴더를 선택하면 곡 순서와 수정된 BPM은 그대로 유지한 채 오디오 파일을 자동 매칭합니다">📁 폴더 매칭</button>
+          <button type="button" class="pl-reconnect-btn" id="pl-reconnect-folder-btn" title="음악 폴더를 선택하면 곡 순서와 수정된 BPM은 그대로 유지한 채 오디오 파일을 자동 매칭합니다">📁 폴더 찾기</button>
         </div>
       </div>
 
@@ -345,7 +347,20 @@ export class PlaylistUI {
     this.container.querySelector('#pl-add-folder-btn').addEventListener('click', openFolderPicker);
     this.container.querySelector('#pl-drop-add-btn')?.addEventListener('click', openFilePicker);
     this.container.querySelector('#pl-drop-folder-btn')?.addEventListener('click', openFolderPicker);
-    this._reconnectFolderBtn?.addEventListener('click', openFolderPicker);
+    this._reconnectFolderBtn?.addEventListener('click', () => {
+      if (this.onReconnectFolder) {
+        this.onReconnectFolder();
+      } else {
+        openFolderPicker();
+      }
+    });
+    this.container.querySelector('#pl-drawer-folder-btn')?.addEventListener('click', () => {
+      if (this.onReconnectFolder) {
+        this.onReconnectFolder();
+      } else {
+        openFolderPicker();
+      }
+    });
     this._reconnectHandlesBtn?.addEventListener('click', async () => {
       if (this.onReconnectHandles) {
         await this.onReconnectHandles();

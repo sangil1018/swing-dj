@@ -14,6 +14,8 @@ import {
   getNextTrackId,
   extractFormatLabel,
   extractDroppedAudioSources,
+  collectAudioHandlesFromDirectory,
+  isAudioFile,
 } from './utils/FileLoader.js';
 import { formatDuration }   from './utils/TimeFormatter.js';
 import { Storage }          from './utils/Storage.js';
@@ -178,6 +180,7 @@ function setPlayingState(track) {
   syncPlayingUI();
   queueUI.updatePlayedState(playedTrackIds);
   playlistUI.updatePlayedState(playedTrackIds);
+  scheduleWorkspaceAutoSave();
 }
 
 function resetPlayedHistory() {
@@ -187,6 +190,7 @@ function resetPlayedHistory() {
   }
   queueUI.updatePlayedState(playedTrackIds);
   playlistUI.updatePlayedState(playedTrackIds);
+  scheduleWorkspaceAutoSave();
   showToast('재생 이력이 초기화되었습니다');
 }
 
@@ -340,20 +344,25 @@ async function init() {
     }
   };
 
-  // 이전 세션 복원 후 파일 핸들 권한 원클릭 재연결
-  playlistUI.onReconnectHandles = async () => {
+  // 이전 세션 복원 후 파일 핸들 권한 원클릭 재연결 (플레이리스트 + 큐 통합)
+  const reconnectAllHandles = async () => {
     const allPending = [];
     for (const tab of pm.tabs) {
       for (const t of tab.tracks) {
-        if (!t.file && t.fileHandle) allPending.push(t);
+        if (!t.file && t.fileHandle && !allPending.includes(t)) allPending.push(t);
       }
+    }
+    for (const t of qm.queue) {
+      if (!t.file && t.fileHandle && !allPending.includes(t)) allPending.push(t);
     }
     if (allPending.length === 0) return 0;
     const count = await profileMgr.reconnectTracksWithHandles(allPending);
     if (count > 0) {
       pm._notify();
+      qm._notify();
       const toAnalyze = allPending.filter((t) => t.file && !t._bpmChecked);
       if (toAnalyze.length > 0) enqueueBackgroundAnalysis(toAnalyze);
+      scheduleWorkspaceAutoSave();
       showToast(`🔗 ${count}곡의 오디오 파일 연결이 활성화되었습니다`);
       updateStatus(`오디오 파일 ${count}곡 연결 완료`);
     } else {
@@ -361,6 +370,87 @@ async function init() {
     }
     return count;
   };
+  playlistUI.onReconnectHandles = reconnectAllHandles;
+  queueUI.onReconnectHandles = reconnectAllHandles;
+
+  // 다른 디바이스 또는 파일 이동 시 음원 폴더 지정으로 미연결 곡 자동 매칭 (플레이리스트 + 큐 통합)
+  const reconnectFromFolder = async () => {
+    let audioItems = [];
+
+    if (window.showDirectoryPicker) {
+      try {
+        const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
+        const handles = await collectAudioHandlesFromDirectory(dirHandle);
+        const filesWithHandles = [];
+        for (const h of handles) {
+          const f = await h.getFile().catch(() => null);
+          if (f) {
+            f._handle = h;
+            filesWithHandles.push(f);
+          }
+        }
+        audioItems = filesWithHandles;
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        console.warn('showDirectoryPicker failed, fallback to input:', e);
+      }
+    }
+
+    if (audioItems.length === 0) {
+      audioItems = await pickFolderViaInput();
+    }
+
+    if (!audioItems || audioItems.length === 0) {
+      return;
+    }
+
+    // 1) PlaylistManager의 matchFolderFiles로 모든 플레이리스트 탭의 미연결 플레이스홀더 매칭
+    const plResult = pm.matchFolderFiles(audioItems);
+
+    // 2) QueueManager의 미연결 곡 매칭
+    let qHydratedCount = 0;
+    for (const qTrack of qm.queue) {
+      if (qTrack.file) continue;
+      for (const item of audioItems) {
+        if (pm._matchesPlaceholder(qTrack, item)) {
+          pm._hydratePlaceholder(qTrack, item);
+          qHydratedCount++;
+          break;
+        }
+      }
+    }
+    if (qHydratedCount > 0) {
+      qm._notify();
+    }
+
+    const totalHydrated = plResult.hydratedCount + qHydratedCount;
+    const plStats = pm.getMissingFileStats();
+    const qStats = qm.getMissingFileStats();
+    const totalMissing = plStats.totalMissing + qStats.missing;
+
+    if (totalHydrated > 0) {
+      const msg = totalMissing === 0
+        ? `📁 음원 폴더 매칭 완료: 총 ${totalHydrated}곡이 모두 정상 연결되었습니다!`
+        : `📁 음원 폴더 매칭: ${totalHydrated}곡 연결됨 (남은 미연결: ${totalMissing}곡)`;
+      showToast(msg);
+      updateStatus(msg);
+
+      const toAnalyze = plResult.hydratedTracks.filter((t) => t.file && !t._bpmChecked);
+      if (toAnalyze.length > 0) enqueueBackgroundAnalysis(toAnalyze);
+
+      // 플레이어 대기곡이 준비 안되어있었다면 로드
+      if (!player.isPlaying && !player.currentTrack && qm.length > 0) {
+        await loadCurrentFromQueue();
+      }
+
+      scheduleWorkspaceAutoSave();
+    } else {
+      showToast(`선택한 폴더에서 일치하는 미연결 음원(${totalMissing}곡)을 찾지 못했습니다`);
+    }
+  };
+
+  playlistUI.onReconnectFolder = reconnectFromFolder;
+  queueUI.onReconnectFolder = reconnectFromFolder;
 
   // 플레이리스트 보관함 저장 / 불러오기 / 파일 내보내기·가져오기 연결
   playlistUI.getSavedPlaylists = () => profileMgr.getSavedPlaylists();
@@ -411,8 +501,9 @@ async function init() {
       }
 
       if (toAnalyze.length > 0) enqueueBackgroundAnalysis(toAnalyze);
+      scheduleWorkspaceAutoSave();
       const msg = missingCount > 0
-        ? `플레이리스트 "${data.name}" 불러옴 (${readyCount}곡 연결됨, ${missingCount}곡 파일 드롭 시 자동 매칭)`
+        ? `플레이리스트 "${data.name}" 불러옴 (${readyCount}곡 연결됨, ${missingCount}곡 파일 드롭 또는 폴더 찾기 시 자동 매칭)`
         : `플레이리스트 "${data.name}" 불러옴 (${readyCount}곡)`;
       showToast(msg);
       updateStatus(msg);
@@ -455,6 +546,7 @@ async function init() {
       } else {
         imported = pm.importFromM3U8Text(text, file.name, { asNewTab });
       }
+      scheduleWorkspaceAutoSave();
       showToast(`📂 "${pm.activeTab.name}" 불러오기 완료 (${imported.length}곡)`);
       updateStatus(`플레이리스트 파일 불러옴: ${pm.activeTab.name} (${imported.length}곡)`);
     } catch (err) {
@@ -465,12 +557,178 @@ async function init() {
 
   playlistUI.onTabCopiedTrack = (track, targetTab) => {
     showToast(`"${targetTab.name}" 탭에 곡 복사됨: ${track.name}`);
+    scheduleWorkspaceAutoSave();
+  };
+
+  // ── 큐 보관함 저장 / 불러오기 / 파일 내보내기·가져오기 / 탭 복사 ──
+  queueUI.getSavedQueues = () => profileMgr.getSavedQueues();
+
+  queueUI.onSaveQueueToStorage = async (name, tracks) => {
+    await profileMgr.saveQueue(name, tracks);
+    showToast(`💾 큐 세트 보관함 저장: "${name}" (${tracks.length}곡)`);
+    updateStatus(`큐 세트 저장됨: ${name} (${tracks.length}곡)`);
+  };
+
+  queueUI.onLoadQueueFromStorage = async (queueId, { append = false } = {}) => {
+    try {
+      const data = await profileMgr.loadQueue(queueId);
+      const toAnalyze = [];
+      const restoredTracks = [];
+      let readyCount = 0;
+      let missingCount = 0;
+
+      for (const meta of data.tracks || []) {
+        // 1) 이미 플레이리스트나 큐에 로드된 파일과 매칭되는지 확인
+        const matched = pm.findLoadedFileMatch(meta);
+        if (matched && matched.file) {
+          const clone = { ...matched, id: getNextTrackId() };
+          if (meta.bpm) clone.bpm = meta.bpm;
+          restoredTracks.push(clone);
+          readyCount++;
+          continue;
+        }
+
+        // 2) 저장된 FileHandle이 있어 파일 로드가 가능한 경우
+        if (meta.file) {
+          const loaded = await loadFiles([meta.file]);
+          if (loaded.length) {
+            const t = loaded[0];
+            if (meta.bpm) {
+              t.bpm = meta.bpm;
+              t._bpmChecked = true;
+            }
+            if (meta.duration) t.duration = meta.duration;
+            if (meta.durationLabel && meta.durationLabel !== '0:00') {
+              t.durationLabel = meta.durationLabel;
+            }
+            restoredTracks.push(t);
+            if (!t._bpmChecked) toAnalyze.push(t);
+            readyCount++;
+            continue;
+          }
+        }
+
+        // 3) 플레이스홀더 생성
+        const built = pm._buildTrackFromMeta(meta);
+        restoredTracks.push(built);
+        if (built.file) readyCount++;
+        else missingCount++;
+      }
+
+      if (append) {
+        qm.enqueueMany(restoredTracks);
+      } else {
+        qm.restoreQueue(restoredTracks);
+      }
+
+      if (!player.isPlaying && !player.currentTrack && qm.length > 0) {
+        await loadCurrentFromQueue();
+      }
+
+      if (toAnalyze.length > 0) enqueueBackgroundAnalysis(toAnalyze);
+      scheduleWorkspaceAutoSave();
+
+      const msg = missingCount > 0
+        ? `큐 세트 "${data.name}" 불러옴 (${readyCount}곡 연결됨, ${missingCount}곡 폴더 찾기 필요)`
+        : `큐 세트 "${data.name}" 불러옴 (${readyCount}곡)`;
+      showToast(msg);
+      updateStatus(msg);
+    } catch (err) {
+      console.error('loadQueue failed:', err);
+      showToast(`큐 세트 불러오기 실패: ${err.message}`);
+    }
+  };
+
+  queueUI.onDeleteSavedQueue = async (queueId) => {
+    await profileMgr.deleteQueue(queueId);
+    showToast('보관함에서 큐 세트를 삭제했습니다');
+  };
+
+  queueUI.onExportQueue = (format) => {
+    if (qm.length === 0) {
+      showToast('내보낼 큐 곡이 없습니다');
+      return;
+    }
+    const defaultName = `queue-${new Date().toISOString().slice(0, 10)}`;
+    const safeName = defaultName.replace(/[\\/:*?"<>|]/g, '_');
+    if (format === 'm3u8') {
+      const m3u = qm.exportToM3U8(defaultName);
+      downloadTextFile(`${safeName}.m3u8`, m3u, 'audio/x-mpegurl;charset=utf-8');
+      showToast(`📥 큐 M3U8 파일 내보내기 완료: ${safeName}.m3u8`);
+    } else {
+      const jsonObj = qm.exportToJSON(defaultName);
+      downloadTextFile(`${safeName}.swingdj-queue.json`, JSON.stringify(jsonObj, null, 2), 'application/json;charset=utf-8');
+      showToast(`📥 큐 JSON 파일 내보내기 완료: ${safeName}.swingdj-queue.json`);
+    }
+  };
+
+  queueUI.onImportQueueFile = async (file) => {
+    try {
+      const text = await file.text();
+      let imported = [];
+      if (file.name.toLowerCase().endsWith('.json') || text.trim().startsWith('{')) {
+        const data = JSON.parse(text);
+        imported = (data.tracks || []).map((m) => {
+          const match = pm.findLoadedFileMatch(m);
+          return match ? { ...match, id: getNextTrackId() } : pm._buildTrackFromMeta(m);
+        });
+      } else {
+        const lines = text.split(/\r?\n/);
+        let curBpm = null;
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          if (trimmed.startsWith('#EXTBPM:')) {
+            const v = parseFloat(trimmed.slice(8).trim());
+            if (isFinite(v)) curBpm = Math.round(v);
+            continue;
+          }
+          if (trimmed.startsWith('#EXTINF:')) {
+            const comma = trimmed.indexOf(',');
+            const display = comma !== -1 ? trimmed.slice(comma + 1).trim() : '';
+            const t = pm._buildTrackFromMeta({
+              name: display,
+              bpm: curBpm,
+              bpmManual: Boolean(curBpm),
+            });
+            imported.push(t);
+            curBpm = null;
+          }
+        }
+      }
+
+      if (imported.length > 0) {
+        qm.enqueueMany(imported);
+        if (!player.isPlaying && !player.currentTrack && qm.length > 0) {
+          await loadCurrentFromQueue();
+        }
+        scheduleWorkspaceAutoSave();
+        showToast(`📂 큐 파일 불러오기 완료 (${imported.length}곡 추가됨)`);
+        updateStatus(`큐 파일 불러옴 (${imported.length}곡)`);
+      } else {
+        showToast('가져올 수 있는 곡 정보가 없습니다');
+      }
+    } catch (err) {
+      console.error('importQueueFile failed:', err);
+      showToast(`큐 파일 읽기 실패: ${err.message}`);
+    }
+  };
+
+  queueUI.onCopyQueueToPlaylist = (tracks) => {
+    if (!tracks || tracks.length === 0) return;
+    const tabName = `큐 복사 목록 (${tracks.length}곡)`;
+    const newTab = pm.createTab(tabName, tracks, true);
+    playlistUI._renderTabs();
+    playlistUI._render(pm.tracks);
+    showToast(`🎵 새 탭 "${newTab.name}"에 큐 ${tracks.length}곡을 복사했습니다`);
+    scheduleWorkspaceAutoSave();
   };
 
   queueUI.onQueueChanged = (queue) => {
     const queuedIds = new Set(queue.map((t) => t.id));
     playlistUI.updateQueuedState(queuedIds);
     updateMobileTabCounts();
+    scheduleWorkspaceAutoSave();
   };
   playlistUI.onRemoveTrack = (removed) => {
     // 플레이리스트에서 삭제 시 CUE에만 걸려있다면 정리 (큐에 이미 올라간 항목은 유지)
@@ -774,12 +1032,39 @@ async function init() {
     }
   });
 
-  // 이전 작업 워크스페이스(멀티 탭 플레이리스트 + 수정된 BPM) 자동 복원
+  // 이전 작업 워크스페이스(멀티 탭 플레이리스트 + 큐 대기열 + 재생 이력) 자동 복원
   const savedWorkspace = await profileMgr.loadWorkspaceSession();
-  if (savedWorkspace && Array.isArray(savedWorkspace.tabs) && savedWorkspace.tabs.length > 0) {
-    const toAnalyze = pm.restoreTabsFromSession(savedWorkspace.tabs, savedWorkspace.activeTabId);
-    if (toAnalyze.length > 0) {
-      enqueueBackgroundAnalysis(toAnalyze);
+  if (savedWorkspace) {
+    if (Array.isArray(savedWorkspace.tabs) && savedWorkspace.tabs.length > 0) {
+      const toAnalyze = pm.restoreTabsFromSession(savedWorkspace.tabs, savedWorkspace.activeTabId);
+      if (toAnalyze.length > 0) {
+        enqueueBackgroundAnalysis(toAnalyze);
+      }
+    }
+
+    if (Array.isArray(savedWorkspace.queue) && savedWorkspace.queue.length > 0) {
+      const restoredQueueTracks = [];
+      for (const meta of savedWorkspace.queue) {
+        const matched = pm.findLoadedFileMatch(meta);
+        if (matched) {
+          restoredQueueTracks.push(matched);
+        } else {
+          restoredQueueTracks.push(pm._buildTrackFromMeta(meta));
+        }
+      }
+      qm.restoreQueue(restoredQueueTracks);
+      if (!player.isPlaying && !player.currentTrack && qm.length > 0) {
+        await loadCurrentFromQueue();
+      }
+    }
+
+    if (Array.isArray(savedWorkspace.playedTrackIds) && savedWorkspace.playedTrackIds.length > 0) {
+      playedTrackIds.clear();
+      for (const id of savedWorkspace.playedTrackIds) {
+        playedTrackIds.add(id);
+      }
+      queueUI.updatePlayedState(playedTrackIds);
+      playlistUI.updatePlayedState(playedTrackIds);
     }
   }
 
@@ -1258,15 +1543,55 @@ async function _runBackgroundAnalysis() {
 let _wsSaveTimer = null;
 function scheduleWorkspaceAutoSave() {
   // localStorage에는 즉시 동기 반영하고, IndexedDB 핸들 저장만 디바운스 처리
-  profileMgr.saveWorkspaceSession(pm.tabs, pm.activeTabId);
-  const badge = document.querySelector('#pl-autosave-badge');
-  if (badge) {
-    badge.classList.add('saving');
-    if (_wsSaveTimer) clearTimeout(_wsSaveTimer);
-    _wsSaveTimer = setTimeout(() => {
-      badge.classList.remove('saving');
-    }, 600);
-  }
+  profileMgr.saveWorkspaceSession(pm.tabs, pm.activeTabId, qm.queue, playedTrackIds);
+  const plBadge = document.querySelector('#pl-autosave-badge');
+  const qBadge  = document.querySelector('#q-autosave-badge');
+  [plBadge, qBadge].forEach((b) => b?.classList.add('saving'));
+  if (_wsSaveTimer) clearTimeout(_wsSaveTimer);
+  _wsSaveTimer = setTimeout(() => {
+    [plBadge, qBadge].forEach((b) => b?.classList.remove('saving'));
+  }, 600);
+}
+
+function pickFolderViaInput() {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.webkitdirectory = true;
+    input.directory = true;
+    input.multiple = true;
+    input.style.display = 'none';
+    document.body.appendChild(input);
+
+    let settled = false;
+    const cleanup = () => {
+      if (!settled) {
+        settled = true;
+        input.remove();
+      }
+    };
+
+    input.addEventListener('change', () => {
+      const files = Array.from(input.files || []).filter(isAudioFile);
+      cleanup();
+      resolve(files);
+    });
+
+    window.addEventListener(
+      'focus',
+      () => {
+        setTimeout(() => {
+          if (!input.files || input.files.length === 0) {
+            cleanup();
+            resolve([]);
+          }
+        }, 1200);
+      },
+      { once: true }
+    );
+
+    input.click();
+  });
 }
 
 /* ── 유틸 ────────────────────────────────────────────── */

@@ -134,8 +134,9 @@
   background: var(--gold-subtle);
 }
 
-/* ── 플레이리스트 저장 / 불러오기 서랍 ────────────────── */
-.pl-io-drawer {
+/* ── 플레이리스트 & 큐 저장 / 불러오기 서랍 ────────────────── */
+.pl-io-drawer,
+.q-io-drawer {
   display: flex;
   flex-direction: column;
   gap: 7px;
@@ -152,13 +153,15 @@
   background: var(--gold-subtle);
 }
 
-.pl-io-row {
+.pl-io-row,
+.q-io-row {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.pl-save-name-input {
+.pl-save-name-input,
+.q-save-name-input {
   flex: 1;
   min-width: 0;
   background: var(--bg-surface);
@@ -170,11 +173,13 @@
   padding: 5px 8px;
   outline: none;
 }
-.pl-save-name-input:focus {
+.pl-save-name-input:focus,
+.q-save-name-input:focus {
   border-color: var(--border-gold);
 }
 
-.pl-io-primary-btn {
+.pl-io-primary-btn,
+.q-io-primary-btn {
   background: var(--gold);
   color: #09090f;
   border-radius: var(--r-sm);
@@ -184,18 +189,21 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
-.pl-io-primary-btn:hover {
+.pl-io-primary-btn:hover,
+.q-io-primary-btn:hover {
   filter: brightness(1.08);
 }
 
-.pl-io-file-btns {
+.pl-io-file-btns,
+.q-io-file-btns {
   display: flex;
   align-items: center;
   gap: 4px;
   flex-wrap: wrap;
 }
 
-.pl-io-chip-btn {
+.pl-io-chip-btn,
+.q-io-chip-btn {
   flex: 1;
   background: var(--bg-hover);
   border: 1px solid var(--border);
@@ -207,19 +215,22 @@
   white-space: nowrap;
   transition: all var(--dur-fast) var(--ease);
 }
-.pl-io-chip-btn:hover {
+.pl-io-chip-btn:hover,
+.q-io-chip-btn:hover {
   color: var(--gold);
   border-color: var(--border-gold);
   background: var(--gold-subtle);
 }
 
-.pl-saved-section {
+.pl-saved-section,
+.q-saved-section {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.pl-saved-title {
+.pl-saved-title,
+.q-saved-title {
   font-size: 10px;
   font-weight: 700;
   color: var(--text-muted);
@@ -227,7 +238,8 @@
   letter-spacing: 0.4px;
 }
 
-.pl-saved-list {
+.pl-saved-list,
+.q-saved-list {
   list-style: none;
   max-height: 120px;
   overflow-y: auto;
@@ -236,14 +248,16 @@
   gap: 4px;
 }
 
-.pl-saved-empty {
+.pl-saved-empty,
+.q-saved-empty {
   font-size: 11px;
   color: var(--text-muted);
   text-align: center;
   padding: 6px 0;
 }
 
-.pl-saved-item {
+.pl-saved-item,
+.q-saved-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -254,7 +268,8 @@
   border-radius: var(--r-sm);
 }
 
-.pl-saved-info {
+.pl-saved-info,
+.q-saved-info {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -262,7 +277,8 @@
   flex: 1;
 }
 
-.pl-saved-name {
+.pl-saved-name,
+.q-saved-name {
   font-size: 11.5px;
   font-weight: 600;
   color: var(--text-primary);
@@ -271,14 +287,16 @@
   white-space: nowrap;
 }
 
-.pl-saved-meta {
+.pl-saved-meta,
+.q-saved-meta {
   font-size: 10px;
   font-family: var(--font-mono);
   color: var(--text-muted);
   flex-shrink: 0;
 }
 
-.pl-saved-actions {
+.pl-saved-actions,
+.q-saved-actions {
   display: flex;
   align-items: center;
   gap: 3px;
@@ -287,7 +305,8 @@
 
 .pl-load-cur-btn,
 .pl-load-new-btn,
-.pl-saved-del-btn {
+.pl-saved-del-btn,
+.q-saved-btn {
   background: var(--bg-hover);
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -298,11 +317,14 @@
   transition: all var(--dur-fast) var(--ease);
 }
 .pl-load-cur-btn:hover,
-.pl-load-new-btn:hover {
+.pl-load-new-btn:hover,
+.q-saved-btn.q-saved-load:hover,
+.q-saved-btn.q-saved-append:hover {
   color: var(--gold);
   border-color: var(--border-gold);
 }
-.pl-saved-del-btn:hover {
+.pl-saved-del-btn:hover,
+.q-saved-btn.q-saved-del:hover {
   color: var(--accent-red);
   border-color: rgba(255, 80, 96, 0.35);
 }
@@ -494,7 +516,8 @@
 }
 
 /* ── 자동저장 상태 배지 & 오디오 재연결 안내 배너 ────────── */
-.pl-autosave-badge {
+.pl-autosave-badge,
+.q-autosave-badge {
   font-size: 9.5px;
   font-weight: 600;
   color: var(--accent-green);
@@ -507,19 +530,22 @@
   transition: all var(--dur-fast) var(--ease);
 }
 
-.pl-autosave-badge.saving {
+.pl-autosave-badge.saving,
+.q-autosave-badge.saving {
   background: var(--gold-subtle);
   border-color: var(--border-gold);
   color: var(--gold);
 }
 
 @media (max-width: 1599px) {
-  .pl-autosave-badge {
+  .pl-autosave-badge,
+  .q-autosave-badge {
     display: none;
   }
 }
 
-.pl-reconnect-banner {
+.pl-reconnect-banner,
+.q-reconnect-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -531,21 +557,24 @@
   flex-wrap: wrap;
 }
 
-.pl-reconnect-text {
+.pl-reconnect-text,
+.q-reconnect-text {
   font-size: 11px;
   font-weight: 600;
   color: var(--gold);
   min-width: 0;
 }
 
-.pl-reconnect-actions {
+.pl-reconnect-actions,
+.q-reconnect-actions {
   display: flex;
   align-items: center;
   gap: 5px;
   flex-shrink: 0;
 }
 
-.pl-reconnect-btn {
+.pl-reconnect-btn,
+.q-reconnect-btn {
   height: 24px;
   display: inline-flex;
   align-items: center;
@@ -561,18 +590,21 @@
   transition: all var(--dur-fast) var(--ease);
 }
 
-.pl-reconnect-btn.primary {
+.pl-reconnect-btn.primary,
+.q-reconnect-btn.primary {
   background: var(--gold);
   border-color: var(--gold);
   color: #09090f;
 }
 
-.pl-reconnect-btn:hover {
+.pl-reconnect-btn:hover,
+.q-reconnect-btn:hover {
   border-color: var(--border-gold);
   color: var(--gold);
 }
 
-.pl-reconnect-btn.primary:hover {
+.pl-reconnect-btn.primary:hover,
+.q-reconnect-btn.primary:hover {
   color: #09090f;
   filter: brightness(1.08);
 }

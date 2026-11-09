@@ -12,6 +12,21 @@ import { Storage } from '../utils/Storage.js';
 
 let _tabSeq = 1;
 
+function extractBaseName(pathOrName) {
+  if (!pathOrName) return '';
+  return String(pathOrName).split(/[\\/]/).pop() || '';
+}
+
+function stripExt(name) {
+  return String(name || '').replace(/\.[a-z0-9]{2,5}$/i, '');
+}
+
+function normalizeKey(str) {
+  return String(str || '')
+    .toLowerCase()
+    .replace(/[\s\-_()[\]{}.,'"+!@#$%^&*~`]/g, '');
+}
+
 export class PlaylistManager {
   constructor() {
     const firstTab = {
@@ -135,7 +150,25 @@ export class PlaylistManager {
   /* ── 트랙 추가 / 삭제 / 정렬 ────────────────────────── */
   _matchesPlaceholder(p, t) {
     if (!p || p.file || !t?.file) return false;
-    if (p.fileName && p.fileName.toLowerCase() === t.file.name.toLowerCase()) return true;
+    const pBase = extractBaseName(p.fileName || p.name).toLowerCase();
+    const tBase = extractBaseName(t.file.name).toLowerCase();
+
+    // 1) 파일명(확장자 포함) 일치
+    if (pBase && tBase && pBase === tBase) return true;
+
+    // 2) 확장자 제외 파일명 일치 (.mp3 vs .wav vs .flac 등 포맷 변경 호환)
+    const pNoExt = stripExt(pBase);
+    const tNoExt = stripExt(tBase);
+    if (pNoExt && tNoExt && pNoExt === tNoExt) return true;
+
+    // 3) 아티스트 + 곡명 정규화 일치
+    const pNorm = normalizeKey((p.artist ? p.artist + ' ' : '') + (p.name || ''));
+    const tNorm = normalizeKey(tNoExt);
+    if (pNorm && tNorm && (pNorm === tNorm || normalizeKey((p.name || '') + ' ' + (p.artist || '')) === tNorm)) {
+      return true;
+    }
+
+    // 4) 곡명 + 아티스트 동시 일치
     if (
       p.name &&
       t.name &&
@@ -144,6 +177,16 @@ export class PlaylistManager {
     ) {
       return true;
     }
+
+    // 5) 파일명에 곡명과 아티스트가 포함된 경우
+    const pTitleNorm = normalizeKey(p.name);
+    const pArtistNorm = normalizeKey(p.artist);
+    if (pTitleNorm && pTitleNorm.length >= 3 && tNorm.includes(pTitleNorm)) {
+      if (!pArtistNorm || pArtistNorm === 'unknownartist' || tNorm.includes(pArtistNorm)) {
+        return true;
+      }
+    }
+
     return false;
   }
 
@@ -342,14 +385,19 @@ export class PlaylistManager {
   /** 다른 탭에 이미 로드된 동일 파일이 있는지 검색 (보관함/JSON 불러오기 시 파일 자동 연결용) */
   findLoadedFileMatch(meta) {
     if (!meta) return null;
+    const metaBase = extractBaseName(meta.fileName || meta.name).toLowerCase();
+    const metaNoExt = stripExt(metaBase);
     for (const tab of this._tabs) {
       for (const t of tab.tracks) {
         if (!t.file) continue;
-        if (meta.fileName && t.file.name.toLowerCase() === meta.fileName.toLowerCase()) {
+        const tBase = extractBaseName(t.file.name).toLowerCase();
+        const tNoExt = stripExt(tBase);
+        if (metaBase && tBase && (metaBase === tBase || metaNoExt === tNoExt)) {
           return t;
         }
         if (
           meta.name &&
+          t.name &&
           t.name.toLowerCase() === meta.name.toLowerCase() &&
           (!meta.artist || !t.artist || t.artist.toLowerCase() === meta.artist.toLowerCase())
         ) {
@@ -358,6 +406,50 @@ export class PlaylistManager {
       }
     }
     return null;
+  }
+
+  /**
+   * 폴더 찾기로 수집한 파일/핸들 목록을 미연결 트랙에만 매칭하여 복원.
+   * 새 파일 추가 없이 기존 플레이스홀더만 연결하므로 플레이리스트 곡 수가 불필요하게 늘어나지 않습니다.
+   */
+  matchFolderFiles(fileListOrHandles = []) {
+    let hydratedCount = 0;
+    const hydratedTracks = [];
+
+    // 가상 track 형태의 후보 목록 생성
+    const candidates = fileListOrHandles.map((item) => {
+      const file = item.file || (item instanceof File ? item : null);
+      const fileHandle = item.fileHandle || (item.kind === 'file' ? item : (file?._handle || null));
+      return {
+        file,
+        fileHandle,
+        name: file ? file.name : (item.name || ''),
+        size: file ? file.size : 0,
+        type: file ? file.type : '',
+      };
+    });
+
+    // 모든 탭의 미연결 트랙 검색 및 매칭
+    for (const tab of this._tabs) {
+      for (const p of tab.tracks) {
+        if (p.file) continue;
+        for (const cand of candidates) {
+          if (!cand.file) continue;
+          if (this._matchesPlaceholder(p, cand)) {
+            this._hydratePlaceholder(p, cand);
+            hydratedTracks.push(p);
+            hydratedCount++;
+            break;
+          }
+        }
+      }
+    }
+
+    if (hydratedCount > 0) {
+      this._notify();
+    }
+
+    return { hydratedCount, hydratedTracks };
   }
 
   reorder(fromIdx, toIdx) {

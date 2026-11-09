@@ -17,6 +17,7 @@ const DB_VERSION = 1;
 const STORE      = 'file_handles';
 const LS_KEY     = 'swingdj_profiles';
 const PL_LS_KEY  = 'swingdj_saved_playlists';
+const QUEUE_LS_KEY = 'swingdj_saved_queues';
 const WS_LS_KEY  = 'swingdj_workspace_session_v1';
 
 export class ProfileManager {
@@ -276,6 +277,113 @@ export class ProfileManager {
     this._setSavedPlaylists(list);
   }
 
+  // ── 큐 세트 목록 (localStorage + IndexedDB) ─────────────
+  getSavedQueues() {
+    try {
+      return JSON.parse(localStorage.getItem(QUEUE_LS_KEY) || '[]');
+    } catch {
+      return [];
+    }
+  }
+
+  _setSavedQueues(list) {
+    localStorage.setItem(QUEUE_LS_KEY, JSON.stringify(list));
+  }
+
+  async saveQueue(name, tracks = []) {
+    const id = `queue_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const items = [];
+
+    for (let i = 0; i < tracks.length; i++) {
+      const t = tracks[i];
+      const handle = t.fileHandle || t.file?._handle || null;
+      const hasHandle = Boolean(handle);
+      if (hasHandle) {
+        await this._dbPut(`${id}_${i}`, handle);
+      }
+      items.push({
+        idx:           i,
+        name:          t.name,
+        artist:        t.artist || '',
+        album:         t.album  || '',
+        bpm:           t.bpm    || null,
+        bpmManual:     Boolean(t._bpmManual),
+        duration:      t.duration || 0,
+        durationLabel: t.durationLabel || '0:00',
+        format:        t.format || '',
+        fileName:      t.file?.name || t.fileName || '',
+        size:          t.file?.size || t.size || 0,
+        loudness:      t.loudness || null,
+        hasHandle,
+      });
+    }
+
+    const totalSeconds = items.reduce((sum, item) => sum + (item.duration || 0), 0);
+    const record = {
+      id,
+      name: String(name || '새 큐 세트').trim(),
+      createdAt: new Date().toISOString(),
+      trackCount: items.length,
+      totalDuration: totalSeconds,
+      tracks: items,
+    };
+
+    const list = this.getSavedQueues();
+    const existingIdx = list.findIndex((p) => p.name === record.name);
+    if (existingIdx >= 0) {
+      const old = list[existingIdx];
+      const n = old.trackCount || (old.tracks?.length ?? 0);
+      for (let i = 0; i < n; i++) {
+        await this._dbDelete(`${old.id}_${i}`);
+      }
+      list[existingIdx] = record;
+    } else {
+      list.push(record);
+    }
+    this._setSavedQueues(list);
+    return record;
+  }
+
+  async loadQueue(queueId) {
+    const list = this.getSavedQueues();
+    const record = list.find((p) => p.id === queueId);
+    if (!record) throw new Error('저장된 큐 세트를 찾을 수 없습니다');
+
+    const restored = [];
+    for (const meta of record.tracks || []) {
+      let fileHandle = null;
+      let file = null;
+
+      if (meta.hasHandle) {
+        fileHandle = await this._dbGet(`${queueId}_${meta.idx}`);
+        if (fileHandle) {
+          const perm = await fileHandle.requestPermission?.({ mode: 'read' }).catch(() => 'denied');
+          if (perm === 'granted' || !fileHandle.requestPermission) {
+            file = await fileHandle.getFile().catch(() => null);
+            if (file) file._handle = fileHandle;
+          }
+        }
+      }
+
+      restored.push({ ...meta, fileHandle, file });
+    }
+
+    return { ...record, tracks: restored };
+  }
+
+  async deleteQueue(queueId) {
+    let list = this.getSavedQueues();
+    const record = list.find((p) => p.id === queueId);
+    if (record) {
+      const n = record.trackCount || (record.tracks?.length ?? 0);
+      for (let i = 0; i < n; i++) {
+        await this._dbDelete(`${record.id}_${i}`);
+      }
+    }
+    list = list.filter((p) => p.id !== queueId);
+    this._setSavedQueues(list);
+  }
+
   /** 수동 수정된 BPM을 저장된 플레이리스트 보관함 및 프로파일에도 일괄 반영 */
   updateTrackBPMInStorage(track) {
     if (!track || !track.bpm) return;
@@ -310,6 +418,19 @@ export class ProfileManager {
       }
       if (plChanged) this._setSavedPlaylists(savedPlaylists);
 
+      const savedQueues = this.getSavedQueues();
+      let qChanged = false;
+      for (const q of savedQueues) {
+        for (const m of q.tracks || []) {
+          if (matchesMeta(m)) {
+            m.bpm = track.bpm;
+            m.bpmManual = Boolean(track._bpmManual);
+            qChanged = true;
+          }
+        }
+      }
+      if (qChanged) this._setSavedQueues(savedQueues);
+
       const profiles = this.getProfiles();
       let profChanged = false;
       for (const p of profiles) {
@@ -325,8 +446,8 @@ export class ProfileManager {
     } catch (_) {}
   }
 
-  // ── 워크스페이스(멀티 탭 플레이리스트) 실시간 자동 저장 & 복원 ──
-  async saveWorkspaceSession(tabs = [], activeTabId = null) {
+  // ── 워크스페이스(멀티 탭 플레이리스트 + 큐) 실시간 자동 저장 & 복원 ──
+  async saveWorkspaceSession(tabs = [], activeTabId = null, queueTracks = [], playedTrackIds = []) {
     try {
       const serializedTabs = [];
       const handleTasks = [];
@@ -364,11 +485,39 @@ export class ProfileManager {
         });
       }
 
+      // 큐 대기열 직렬화 및 파일 핸들 보존
+      const serializedQueue = [];
+      for (let i = 0; i < (queueTracks || []).length; i++) {
+        const t = queueTracks[i];
+        const handle = t.fileHandle || t.file?._handle || null;
+        const hasHandle = Boolean(handle);
+        if (hasHandle) {
+          handleTasks.push({ key: `ws_q_${i}`, handle });
+        }
+        serializedQueue.push({
+          idx:           i,
+          name:          t.name,
+          artist:        t.artist || '',
+          album:         t.album  || '',
+          bpm:           t.bpm    || null,
+          bpmManual:     Boolean(t._bpmManual),
+          duration:      t.duration || 0,
+          durationLabel: t.durationLabel || '0:00',
+          format:        t.format || '',
+          fileName:      t.file?.name || t.fileName || '',
+          size:          t.file?.size || t.size || 0,
+          loudness:      t.loudness || null,
+          hasHandle,
+        });
+      }
+
       const payload = {
-        version:     1,
-        updatedAt:   new Date().toISOString(),
-        activeTabId: activeTabId || serializedTabs[0]?.id || null,
-        tabs:        serializedTabs,
+        version:        2,
+        updatedAt:      new Date().toISOString(),
+        activeTabId:    activeTabId || serializedTabs[0]?.id || null,
+        tabs:           serializedTabs,
+        queue:          serializedQueue,
+        playedTrackIds: Array.from(playedTrackIds || []),
       };
       // 1) localStorage에 메타데이터 즉시(동기) 기록 → 탭 닫기/새로고침 시에도 100% 보장
       localStorage.setItem(WS_LS_KEY, JSON.stringify(payload));
@@ -389,9 +538,10 @@ export class ProfileManager {
       const session = JSON.parse(raw);
       if (!session || !Array.isArray(session.tabs) || session.tabs.length === 0) return null;
 
-      // 모든 탭이 비어있는 세션이면 복원 불필요
+      // 모든 탭과 큐가 비어있는 세션이면 복원 불필요
       const totalTracks = session.tabs.reduce((sum, tab) => sum + (tab.tracks?.length || 0), 0);
-      if (totalTracks === 0 && session.tabs.length <= 1) return null;
+      const queueCount = session.queue?.length || 0;
+      if (totalTracks === 0 && queueCount === 0 && session.tabs.length <= 1) return null;
 
       const restoredTabs = [];
       for (let tIdx = 0; tIdx < session.tabs.length; tIdx++) {
@@ -422,9 +572,31 @@ export class ProfileManager {
         });
       }
 
+      // 큐 대기열 복원
+      const restoredQueue = [];
+      for (const meta of session.queue || []) {
+        let fileHandle = null;
+        let file = null;
+        if (meta.hasHandle) {
+          fileHandle = await this._dbGet(`ws_q_${meta.idx}`);
+          if (fileHandle) {
+            const perm = typeof fileHandle.queryPermission === 'function'
+              ? await fileHandle.queryPermission({ mode: 'read' }).catch(() => 'prompt')
+              : 'granted';
+            if (perm === 'granted') {
+              file = await fileHandle.getFile().catch(() => null);
+              if (file) file._handle = fileHandle;
+            }
+          }
+        }
+        restoredQueue.push({ ...meta, fileHandle, file });
+      }
+
       return {
-        activeTabId: session.activeTabId,
-        tabs:        restoredTabs,
+        activeTabId:    session.activeTabId,
+        tabs:           restoredTabs,
+        queue:          restoredQueue,
+        playedTrackIds: session.playedTrackIds || [],
       };
     } catch (e) {
       console.warn('loadWorkspaceSession failed:', e);

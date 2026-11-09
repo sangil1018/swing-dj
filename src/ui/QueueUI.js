@@ -18,11 +18,21 @@ export class QueueUI {
     this.onImportAllFromPlaylist = null; // () => void
     this.onExternalFilesDropped = null; // ({ handles, files }) => Promise<void>
     this.onBPMBadgeClick        = null; // (track, anchorEl) => void
+    this.getSavedQueues         = null; // () => SavedQueue[]
+    this.onSaveQueueToStorage   = null; // (name, tracks) => Promise<void>
+    this.onLoadQueueFromStorage = null; // (queueId, { append }) => Promise<void>
+    this.onDeleteSavedQueue     = null; // (queueId) => Promise<void>
+    this.onExportQueue          = null; // (format: 'json'|'m3u8') => void
+    this.onImportQueueFile      = null; // (file: File) => Promise<void>
+    this.onCopyQueueToPlaylist  = null; // (tracks) => void
+    this.onReconnectHandles     = null; // () => Promise<number>
+    this.onReconnectFolder      = null; // () => Promise<void>
 
     this._listEl       = null;
     this._dragSrcIdx   = null;
     this._isCueSeeking = false;
     this._pendingFocusIdx = null;
+    this._ioDrawerOpen = false;
 
     this.qm.onChange = () => {
       this._renderList();
@@ -111,10 +121,41 @@ export class QueueUI {
         <div class="panel-title-wrap">
           <span class="panel-title">📋 큐</span>
           <span class="track-count" id="q-summary">0곡</span>
+          <span class="q-autosave-badge" id="q-autosave-badge" title="큐 대기열과 재생 완료 이력은 브라우저에 자동 저장되며, 앱을 다시 켜면 그대로 복원됩니다">✓ 자동저장</span>
         </div>
         <div class="panel-header-actions">
+          <button class="btn-text btn-text-gold" id="q-io-btn" type="button" title="큐 보관함 저장/불러오기 및 JSON·M3U8 파일 내보내기/가져오기">💾 보관함</button>
           <button class="btn-text btn-text-gold" id="q-reset-history-btn" type="button" title="재생 완료 이력을 초기화하여 같은 곡을 다시 추가할 수 있게 합니다">이력 초기화</button>
           <button class="btn-text" id="q-clear-btn" type="button" title="큐 대기열 전체 비우기">전체 삭제</button>
+        </div>
+      </div>
+
+      <!-- 큐 저장 / 불러오기 / 파일 입출력 서랍 -->
+      <div class="q-io-drawer" id="q-io-drawer" style="display:none" aria-label="큐 저장 및 불러오기">
+        <div class="q-io-row">
+          <input type="text" id="q-save-name-input" class="q-save-name-input" placeholder="저장할 큐 세트 이름 (예: 1부 댄스 셋)" maxlength="32" />
+          <button type="button" class="q-io-primary-btn" id="q-save-storage-btn" title="브라우저 보관함에 현재 큐 대기열 저장">💾 보관함 저장</button>
+        </div>
+        <div class="q-io-file-btns">
+          <button type="button" class="q-io-chip-btn" id="q-export-json-btn" title="현재 큐를 JSON 파일(.swingdj.json)로 내보내기">📥 JSON 저장</button>
+          <button type="button" class="q-io-chip-btn" id="q-export-m3u-btn" title="현재 큐를 M3U8 파일(.m3u8)로 내보내기">📥 M3U8 저장</button>
+          <button type="button" class="q-io-chip-btn" id="q-import-file-btn" title="JSON 또는 M3U/M3U8 큐 파일 불러오기">📂 파일 불러오기</button>
+          <button type="button" class="q-io-chip-btn" id="q-copy-to-tab-btn" title="현재 큐 목록 전체를 새 플레이리스트 탭으로 복사">🎵 탭으로 복사</button>
+          <button type="button" class="q-io-chip-btn" id="q-drawer-folder-btn" title="다른 기기나 폴더 이동 시 음원 폴더를 지정하여 큐와 플레이리스트의 미연결 곡을 자동 매칭">📁 음원 폴더 찾기</button>
+          <input type="file" id="q-import-input" accept=".json,.m3u,.m3u8,application/json,audio/x-mpegurl" style="display:none" />
+        </div>
+        <div class="q-saved-section">
+          <div class="q-saved-title">보관함에 저장된 큐 세트</div>
+          <ul class="q-saved-list" id="q-saved-list"></ul>
+        </div>
+      </div>
+
+      <!-- 큐 이전 세션 복원 후 오디오 권한/폴더 원클릭 재연결 배너 -->
+      <div class="q-reconnect-banner" id="q-reconnect-banner" style="display:none">
+        <span class="q-reconnect-text" id="q-reconnect-text">🔗 이전 큐가 복원되었습니다</span>
+        <div class="q-reconnect-actions">
+          <button type="button" class="q-reconnect-btn primary" id="q-reconnect-handles-btn" title="클릭 한 번으로 저장된 오디오 파일 읽기 권한을 다시 활성화합니다">🔗 오디오 연결</button>
+          <button type="button" class="q-reconnect-btn" id="q-reconnect-folder-btn" title="음악 폴더를 선택하면 곡 순서와 수정된 BPM은 그대로 유지한 채 오디오 파일을 자동 매칭합니다">📁 폴더 찾기</button>
         </div>
       </div>
 
@@ -160,6 +201,15 @@ export class QueueUI {
 
     this._listEl        = this.container.querySelector('#q-list');
     this._summaryEl     = this.container.querySelector('#q-summary');
+    this._ioDrawerEl    = this.container.querySelector('#q-io-drawer');
+    this._ioBtnEl       = this.container.querySelector('#q-io-btn');
+    this._saveNameInput = this.container.querySelector('#q-save-name-input');
+    this._savedListEl   = this.container.querySelector('#q-saved-list');
+    this._importInput   = this.container.querySelector('#q-import-input');
+    this._reconnectBannerEl = this.container.querySelector('#q-reconnect-banner');
+    this._reconnectTextEl   = this.container.querySelector('#q-reconnect-text');
+    this._reconnectHandlesBtn = this.container.querySelector('#q-reconnect-handles-btn');
+    this._reconnectFolderBtn  = this.container.querySelector('#q-reconnect-folder-btn');
     this._cueNowEl      = this.container.querySelector('#cue-now');
     this._cuePlayBtn    = this.container.querySelector('#cue-play-btn');
     this._cueStopBtn    = this.container.querySelector('#cue-stop-btn');
@@ -172,6 +222,65 @@ export class QueueUI {
     this._cueVolSlider  = this.container.querySelector('#cue-vol');
     this._cueVolPct     = this.container.querySelector('#cue-vol-pct');
     this._cueMuteBtn    = this.container.querySelector('#btn-cue-mute');
+
+    // 큐 보관함 서랍 토글 및 세트 관리
+    this._ioBtnEl?.addEventListener('click', () => this.toggleIODrawer());
+    this.container.querySelector('#q-save-storage-btn')?.addEventListener('click', async () => {
+      if (this.qm.length === 0) {
+        showToast('큐에 저장할 곡이 없습니다');
+        return;
+      }
+      const defaultName = `큐 세트 ${new Date().toLocaleDateString('ko-KR')}`;
+      const name = (this._saveNameInput.value || '').trim() || defaultName;
+      if (this.onSaveQueueToStorage) {
+        await this.onSaveQueueToStorage(name, this.qm.queue);
+        this.renderSavedQueues();
+      }
+    });
+
+    // 큐 JSON / M3U8 파일 내보내기 및 불러오기
+    this.container.querySelector('#q-export-json-btn')?.addEventListener('click', () => {
+      this.onExportQueue?.('json');
+    });
+    this.container.querySelector('#q-export-m3u-btn')?.addEventListener('click', () => {
+      this.onExportQueue?.('m3u8');
+    });
+    this.container.querySelector('#q-import-file-btn')?.addEventListener('click', () => {
+      this._importInput.click();
+    });
+    this._importInput?.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (file && this.onImportQueueFile) {
+        await this.onImportQueueFile(file);
+      }
+    });
+
+    // 큐 목록을 새 플레이리스트 탭으로 복사
+    this.container.querySelector('#q-copy-to-tab-btn')?.addEventListener('click', () => {
+      if (this.qm.length === 0) {
+        showToast('플레이리스트로 복사할 큐 곡이 없습니다');
+        return;
+      }
+      this.onCopyQueueToPlaylist?.(this.qm.queue);
+    });
+
+    // 서랍 내 음원 폴더 찾기
+    this.container.querySelector('#q-drawer-folder-btn')?.addEventListener('click', () => {
+      this.onReconnectFolder?.();
+    });
+
+    // 재연결 배너 버튼
+    this._reconnectHandlesBtn?.addEventListener('click', async () => {
+      if (this.onReconnectHandles) {
+        await this.onReconnectHandles();
+      }
+    });
+    this._reconnectFolderBtn?.addEventListener('click', () => {
+      this.onReconnectFolder?.();
+    });
+
+    this.renderSavedQueues();
 
     // 이력 초기화 및 안전한 전체 삭제
     this.container.querySelector('#q-reset-history-btn')?.addEventListener('click', () => {
@@ -330,9 +439,100 @@ export class QueueUI {
     this._cueBarEl.addEventListener('pointercancel', endCueSeek);
   }
 
+  toggleIODrawer(force) {
+    const open = force !== undefined ? force : !this._ioDrawerOpen;
+    this._ioDrawerOpen = open;
+    if (this._ioDrawerEl) {
+      this._ioDrawerEl.style.display = open ? 'flex' : 'none';
+    }
+    if (this._ioBtnEl) {
+      this._ioBtnEl.classList.toggle('active', open);
+      this._ioBtnEl.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    if (open) {
+      this.renderSavedQueues();
+      if (this._saveNameInput && !this._saveNameInput.value) {
+        this._saveNameInput.value = `큐 세트 ${new Date().toLocaleDateString('ko-KR')}`;
+      }
+    }
+  }
+
+  renderSavedQueues() {
+    if (!this._savedListEl) return;
+    const list = (this.getSavedQueues ? this.getSavedQueues() : []) || [];
+    if (list.length === 0) {
+      this._savedListEl.innerHTML = `<li class="q-saved-empty">저장된 큐 세트가 없습니다. 위 입력창에서 저장해보세요.</li>`;
+      return;
+    }
+
+    this._savedListEl.innerHTML = list.map((item) => {
+      const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleDateString('ko-KR') : '';
+      const durStr = item.totalDuration ? ` · ${formatSetDuration(item.totalDuration)}` : '';
+      return `
+        <li class="q-saved-item" data-id="${item.id}">
+          <div class="q-saved-info" title="${escAttr(item.name)} (${item.trackCount || 0}곡)">
+            <span class="q-saved-name">${escHtml(item.name)}</span>
+            <span class="q-saved-meta">${item.trackCount || 0}곡${durStr} · ${dateStr}</span>
+          </div>
+          <div class="q-saved-actions">
+            <button type="button" class="q-saved-btn q-saved-load" data-id="${item.id}" title="현재 큐를 이 세트로 교체하여 불러오기">불러오기</button>
+            <button type="button" class="q-saved-btn q-saved-append" data-id="${item.id}" title="현재 큐 목록 뒤에 추가">+추가</button>
+            <button type="button" class="q-saved-btn q-saved-del" data-id="${item.id}" title="보관함에서 삭제">✕</button>
+          </div>
+        </li>
+      `;
+    }).join('');
+
+    this._savedListEl.querySelectorAll('.q-saved-load').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        this.onLoadQueueFromStorage?.(id, { append: false });
+      });
+    });
+
+    this._savedListEl.querySelectorAll('.q-saved-append').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        this.onLoadQueueFromStorage?.(id, { append: true });
+      });
+    });
+
+    this._savedListEl.querySelectorAll('.q-saved-del').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        const item = list.find((q) => q.id === id);
+        if (confirm(`큐 보관함에서 "${item?.name || '큐 세트'}"를 삭제할까요?`)) {
+          await this.onDeleteSavedQueue?.(id);
+          this.renderSavedQueues();
+        }
+      });
+    });
+  }
+
   _updateSummary() {
     if (!this._summaryEl) return;
     const queue = this.qm.queue;
+
+    // 미연결 트랙 통계 및 재연결 배너 업데이트
+    if (this._reconnectBannerEl) {
+      const stats = this.qm.getMissingFileStats();
+      if (stats.missing > 0) {
+        this._reconnectBannerEl.style.display = 'flex';
+        if (stats.withHandles > 0) {
+          this._reconnectTextEl.textContent = `🔗 큐 ${stats.missing}곡 오디오 대기 중`;
+          this._reconnectHandlesBtn.style.display = 'inline-flex';
+        } else {
+          this._reconnectTextEl.textContent = `📁 큐 ${stats.missing}곡 파일 연결 대기 중`;
+          this._reconnectHandlesBtn.style.display = 'none';
+        }
+      } else {
+        this._reconnectBannerEl.style.display = 'none';
+      }
+    }
+
     if (queue.length === 0) {
       this._summaryEl.textContent = '0곡';
       this._summaryEl.title = '대기 중인 곡 없음';
@@ -391,6 +591,9 @@ export class QueueUI {
     this._listEl.innerHTML = queue.map((t, i) => {
       const isPlaying = t.id === this._playingTrackId ? 'playing' : '';
       const isCueing  = t.id === this._cueingTrackId ? 'cueing' : '';
+      if (t.file && this._missingTrackIds.has(t.id)) {
+        this._missingTrackIds.delete(t.id);
+      }
       const isMissing = (!t.file || this._missingTrackIds.has(t.id)) ? 'missing' : '';
       const isPlayed  = this._playedTrackIds.has(t.id) ? 'played' : '';
       const tierCls   = getBPMTierClass(t.bpm);
